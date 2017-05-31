@@ -3,7 +3,7 @@ Equality-constrained quadratic programming solvers.
 """
 
 from __future__ import division, print_function, absolute_import
-from scipy.sparse import linalg, bmat, csc_matrix
+from scipy.sparse import linalg, bmat, csc_matrix, eye
 from scipy.sparse.linalg import LinearOperator
 from sksparse.cholmod import cholesky_AAt
 import numpy as np
@@ -60,7 +60,7 @@ def eqp_kktfact(G, c, A, b):
     return x, lagrange_multipliers
 
 
-def projections(A):
+def projections(A, method='NormalEquation'):
     """
     Return three linear operators related with a given matrix A.
 
@@ -68,7 +68,21 @@ def projections(A):
     ----------
     A : sparse matrix
         Matrix ``A`` used in the projection
+    method : string
+        Method used for compute the given linear
+        operators. Should be one of:
 
+            - 'NormalEquation': The operators
+               will be computed using the
+               so-called normal equation approach
+               explained in [1]_ p.462.
+               In order to do so the Cholesky
+               factorization of ``(A A.T)`` is
+               computed using CHOLMOD.
+            - 'AugmentedSystem': The operators
+               will be computed using the
+               so-called augmented system approach
+               explained in [1]_ p.463.
     Returns
     -------
     Z : LinearOperator
@@ -93,28 +107,89 @@ def projections(A):
         vector ``y = Q x``  the minimum norm solution
         of ``A y = x``
 
-    Notes
-    -----
-    The operators will be computed using the so-called
-    normal equation approach explained in Nocedal/Wright
-    "Numerical Optimization" p.462.
+    References
+    ----------
+    .. [1] Nocedal, J, and S J Wright. 2006. Numerical Optimization.
+       Springer New York.
     """
 
     m, n = np.shape(A)
 
-    factor = cholesky_AAt(A)
+    if method == 'NormalEquation':
 
-    # z = x - A.T inv(A A.T) A x
-    def null_space(x):
-        return x - A.T.dot(factor(A.dot(x)))
+        # Cholesky factorization
+        factor = cholesky_AAt(A)
 
-    # z = inv(A A.T) A x
-    def least_squares(x):
-        return factor(A.dot(x))
+        # z = x - A.T inv(A A.T) A x
+        def null_space(x):
+            return x - A.T.dot(factor(A.dot(x)))
 
-    # z = A.T inv(A A.T) x
-    def row_space(x):
-        return A.T.dot(factor(x))
+        # z = inv(A A.T) A x
+        def least_squares(x):
+            return factor(A.dot(x))
+
+        # z = A.T inv(A A.T) x
+        def row_space(x):
+            return A.T.dot(factor(x))
+
+    elif method == 'AugmentedSystem':
+
+        # Form aumengted system
+        K = csc_matrix(bmat([[eye(n), A.T], [A, None]]))
+
+        # LU factorization
+        # TODO: Use a symmetric indefinite factorization
+        #       to solve the system twice as fast (because
+        #       of the symmetry)
+        factor = linalg.splu(K)
+
+        # z = x - A.T inv(A A.T) A x
+        # is computed solving the extended system:
+        # [I A.T] * [ z ] = [x]
+        # [A  O ]   [aux]   [0]
+        def null_space(x):
+            # v = [x]
+            #     [0]
+            v = np.hstack([x, np.zeros(m)])
+
+            # lu_sol = [ z ]
+            #          [aux]
+            lu_sol = factor.solve(v)
+
+            # return z = x - A.T inv(A A.T) A x
+            return lu_sol[:n]
+
+        # z = inv(A A.T) A x
+        # is computed solving the extended system:
+        # [I A.T] * [aux] = [x]
+        # [A  O ]   [ z ]   [0]
+        def least_squares(x):
+            # v = [x]
+            #     [0]
+            v = np.hstack([x, np.zeros(m)])
+
+            # lu_sol = [aux]
+            #          [ z ]
+            lu_sol = factor.solve(v)
+
+            # return z = inv(A A.T) A x
+            return lu_sol[n:m+n]
+
+        # z = A.T inv(A A.T) x
+        # is computed solving the extended system:
+        # [I A.T] * [ z ] = [0]
+        # [A  O ]   [aux]   [x]
+        def row_space(x):
+            # v = [0]
+            #     [x]
+            v = np.hstack([np.zeros(n), x])
+
+            # lu_sol = [ z ]
+            #          [aux]
+            lu_sol = factor.solve(v)
+
+            # return z = A.T inv(A A.T) x
+            return lu_sol[:n]
 
     Z = LinearOperator((n, n), null_space)
     LS = LinearOperator((m, n), least_squares)
@@ -152,8 +227,12 @@ def projected_cg(G, c, Z, Y, b, tol=None):
 
     Notes
     -----
-    Algorithm 16.2 on p.461 in Nocedal and Wright
-    "Numerical Optimization".
+    Algorithm 16.2 on [1]_ p.461.
+
+    References
+    ----------
+    .. [1] Nocedal, J, and S J Wright. 2006. Numerical Optimization.
+       Springer New York.
     """
 
     n = len(c)  # Number of parameters

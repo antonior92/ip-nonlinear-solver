@@ -37,21 +37,22 @@ class TestProjections(TestCase):
         At_dense = A_dense.T
         A = csc_matrix(A_dense)
 
-        Z, LS, _ = projections(A)
-
         test_points = ([1, 2, 3, 4, 5, 6, 7, 8],
                        [1, 10, 3, 0, 1, 6, 7, 8],
                        [1.12, 10, 0, 0, 100000, 6, 0.7, 8])
 
-        for z in test_points:
-            # Test if x is in the null_space
-            x = Z.matvec(z)
-            assert_array_almost_equal(A.dot(x), 0)
+        for method in ("NormalEquation", "AugmentedSystem"):
+            Z, LS, _ = projections(A, method)
 
-            # Test if x is the least square solution
-            x = LS.matvec(z)
-            x2 = np.linalg.lstsq(At_dense, z)[0]
-            assert_array_almost_equal(x, x2)
+            for z in test_points:
+                # Test if x is in the null_space
+                x = Z.matvec(z)
+                assert_array_almost_equal(A.dot(x), 0)
+
+                # Test if x is the least square solution
+                x = LS.matvec(z)
+                x2 = np.linalg.lstsq(At_dense, z)[0]
+                assert_array_almost_equal(x, x2)
 
     def test_rowspace(self):
 
@@ -61,21 +62,22 @@ class TestProjections(TestCase):
         At_dense = A_dense.T
         A = csc_matrix(A_dense)
 
-        _, _, Y = projections(A)
-
         test_points = ([1, 2, 3],
                        [1, 10, 3],
                        [1.12, 10, 0])
 
-        for z in test_points:
-            # Test if x is solution of A x = z
-            x = Y.matvec(z)
-            assert_array_almost_equal(A.dot(x), z)
+        for method in ('NormalEquation', 'AugmentedSystem'):
+            _, _, Y = projections(A, method)
 
-            # Test if x is in the row space of A
-            A_ext = np.vstack((A_dense, x))
-            assert_equal(np.linalg.matrix_rank(A_dense),
-                         np.linalg.matrix_rank(A_ext))
+            for z in test_points:
+                # Test if x is solution of A x = z
+                x = Y.matvec(z)
+                assert_array_almost_equal(A.dot(x), z)
+
+                # Test if x is in the return ow space of A
+                A_ext = np.vstack((A_dense, x))
+                assert_equal(np.linalg.matrix_rank(A_dense),
+                             np.linalg.matrix_rank(A_ext))
 
 
 class TestProjectCG(TestCase):
