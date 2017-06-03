@@ -198,7 +198,7 @@ def projections(A, method='NormalEquation'):
     return Z, LS, Y
 
 
-def projected_cg(G, c, Z, Y, b, tol=None):
+def projected_cg(G, c, Z, Y, b, tol=None, return_all=False):
     """
     Solve equality-constrained quadratic programming (EQP) problem
     ``min 1/2 x.T G x + x.t c``  subject to ``A x = b``
@@ -219,11 +219,20 @@ def projected_cg(G, c, Z, Y, b, tol=None):
         Unidimensional array.
     tol : float
         Tolerance used to interrupt the algorithm
+    return_all : bool
+        When true return the list of all vectors through the iterations.
 
     Returns
     -------
     x : ndarray
         Solution of the KKT problem
+    info : Dict
+        Dictionary containing the following:
+
+            - niter : Number of iteractions.
+            - step_norm : gives the norm of the last step ``d`` scalated
+                          by the projection matrix ``Z``, that is: ``d.T Z d``.
+            - allvecs : List containing all intermediary vectors (optional).
 
     Notes
     -----
@@ -244,39 +253,55 @@ def projected_cg(G, c, Z, Y, b, tol=None):
     g = Z.dot(r)
     d = -g
 
+    # Store ``x`` value
+    if return_all:
+        allvecs = [x]
+
     # Values for the first iteration
     G_d = G.dot(d)
     rt_g = r.dot(g)
 
     # Set default tolerance
     if tol is None:
-        tol = max(0.01*np.sqrt(rt_g), 1e-8)
+        tol = max(0.01 * np.sqrt(rt_g), 1e-8)
 
-    # Check if the problem is not satisfied already
-    if rt_g < tol:
-        return x
+    k = 1
+    for i in range(n-m-1):
 
-    for i in range(n-m):
+        # Stop Criteria r.T g < tol
+        if rt_g < tol:
+            break
 
+        # Compute next step
         dt_G_d = G_d.dot(d)
-
-        alpha = rt_g/dt_G_d
+        alpha = rt_g / dt_G_d
         x = x + alpha*d
+
+        # Store ``x`` value
+        if return_all:
+            allvecs.append(x)
+
+        # Update residual
         r_next = r + alpha*G_d
+
+        # Project residual g+ = Z r+
         g_next = Z.dot(r_next)
 
+        # Compute conjugate direction step d
         rt_g_next = r_next.dot(g_next)
-
-        # Stop Criteria
-        if rt_g_next < tol:
-            return x
-
-        beta = rt_g_next/rt_g
+        beta = rt_g_next / rt_g
         d = - g_next + beta*d
 
+
+        # Prepare for next iteration
         g = g_next
         r = r_next
-        G_d = G.dot(d)
         rt_g = rt_g_next
+        G_d = G.dot(d)
+        k += 1
 
-    return x
+    info = {'niter': k, 'step_norm': rt_g}
+    if return_all:
+        info['allvecs'] = allvecs
+
+    return x, info

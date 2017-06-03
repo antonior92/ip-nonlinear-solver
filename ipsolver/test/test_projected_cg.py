@@ -96,7 +96,7 @@ class TestProjectCG(TestCase):
 
         Z, _, Y = projections(A)
 
-        x = projected_cg(G, c, Z, Y, b)
+        x, info = projected_cg(G, c, Z, Y, b)
 
         assert_array_almost_equal(x, [2, -1, 1])
 
@@ -113,7 +113,7 @@ class TestProjectCG(TestCase):
 
         Z, _, Y = projections(A)
 
-        x = projected_cg(G, c, Z, Y, b, tol=1e-15)
+        x, info = projected_cg(G, c, Z, Y, b, tol=1e-15)
         x_kkt, _ = eqp_kktfact(G, c, A, b)
 
         assert_array_almost_equal(x, x_kkt)
