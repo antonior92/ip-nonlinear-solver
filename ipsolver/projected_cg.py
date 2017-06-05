@@ -11,22 +11,25 @@ import numpy as np
 __all__ = [
     'eqp_kktfact',
     'projections',
-    'projected_cg'
+    'projected_cg',
+    'orthogonality'
 ]
 
 
 # For comparison with the projected CG
-def eqp_kktfact(G, c, A, b):
+def eqp_kktfact(H, c, A, b):
     """
     Solve equality-constrained quadratic programming (EQP) problem
-    ``min 1/2 x.T G x + x.t c``  subject to ``A x = b``
+    ``min 1/2 x.T H x + x.t c``  subject to ``A x = b``
     using direct factorization of the KKT system.
 
     Parameters
     ----------
-    G, A : sparse matrix
+    H, A : sparse matrix
         Hessian and Jacobian matrix of the EQP problem.
     c, b : ndarray
+
+
         Unidimensional arrays.
 
     Returns
@@ -43,7 +46,7 @@ def eqp_kktfact(G, c, A, b):
     # Karush-Kuhn-Tucker matrix of coeficients.
     # Defined as in Nocedal/Wright "Numerical
     # Optimization" p.452 in Eq. (16.4)
-    kkt_matrix = csc_matrix(bmat([[G, A.T], [A, None]]))
+    kkt_matrix = csc_matrix(bmat([[H, A.T], [A, None]]))
 
     # Vector of coeficients.
     kkt_vec = np.hstack([-c, b])
@@ -60,6 +63,51 @@ def eqp_kktfact(G, c, A, b):
     return x, lagrange_multipliers
 
 
+def orthogonality(A, g):
+    """
+    Compute a measure of orthogonality between the null space
+    of the (possibly sparse) matrix ``A`` and a given
+    vector ``g``:
+    ``orth =  max_i(A[i, :].T g/(norm(A[i, :])*norm(g))``.
+    The formula is provided in [1]_, formula (3.13).
+
+    References
+    ----------
+    .. [1] Gould, Nicholas IM, Mary E. Hribar, and Jorge Nocedal.
+           "On the solution of equality constrained quadratic
+            programming problems arising in optimization."
+            SIAM Journal on Scientific Computing 23.4 (2001): 1376-1395.
+    """
+
+    m, _ = np.shape(A)
+
+    norm_g = np.linalg.norm(g)
+    if norm_g == 0:
+        return 0
+    At_g = A.dot(g)
+
+    orth = -np.Inf
+    for i in range(m):
+        Ai = A[i, :]
+        aux = np.sqrt(Ai.dot(Ai.T))
+
+        # This will depend if A is a matrix or an array
+        if isinstance(aux, float):
+            norm_A_row = aux
+        else:
+            norm_A_row = aux[0, 0]
+
+        if norm_A_row < 1e-30:
+            cos_theta = 1
+        else:
+            cos_theta = At_g[i]/(norm_A_row*norm_g)
+
+        if cos_theta > orth:
+            orth = min(1, cos_theta)
+
+    return orth
+
+
 def projections(A, method='NormalEquation'):
     """
     Return three linear operators related with a given matrix A.
@@ -67,7 +115,7 @@ def projections(A, method='NormalEquation'):
     Parameters
     ----------
     A : sparse matrix
-        Matrix ``A`` used in the projection
+         Matrix ``A`` used in the projection.
     method : string
         Method used for compute the given linear
         operators. Should be one of:
@@ -75,7 +123,7 @@ def projections(A, method='NormalEquation'):
             - 'NormalEquation': The operators
                will be computed using the
                so-called normal equation approach
-               explained in [1]_ p.462.
+               explained in [1]_.
                In order to do so the Cholesky
                factorization of ``(A A.T)`` is
                computed using CHOLMOD.
@@ -109,9 +157,15 @@ def projections(A, method='NormalEquation'):
 
     References
     ----------
-    .. [1] Nocedal, J, and S J Wright. 2006. Numerical Optimization.
-       Springer New York.
+    .. [1] Gould, Nicholas IM, Mary E. Hribar, and Jorge Nocedal.
+        "On the solution of equality constrained quadratic
+        programming problems arising in optimization."
+        SIAM Journal on Scientific Computing 23.4 (2001): 1376-1395.
     """
+
+    # Iterative Refinement Parameters
+    ORTH_TOLERANCE = 1e-12
+    MAX_INTERACTIONS = 3
 
     m, n = np.shape(A)
 
@@ -122,7 +176,22 @@ def projections(A, method='NormalEquation'):
 
         # z = x - A.T inv(A A.T) A x
         def null_space(x):
-            return x - A.T.dot(factor(A.dot(x)))
+
+            v = factor(A.dot(x))
+            z = x - A.T.dot(v)
+
+            # Iterative refinement to improve roundoff
+            # errors described in [2]_, algorithm 5.1
+            k = 0
+            while orthogonality(A, z) > ORTH_TOLERANCE:
+                # z_next = z - A.T inv(A A.T) A z
+                v = factor(A.dot(z))
+                z = z - A.T.dot(v)
+                k += 1
+                if k > MAX_INTERACTIONS:
+                    break
+
+            return z
 
         # z = inv(A A.T) A x
         def least_squares(x):
@@ -156,8 +225,31 @@ def projections(A, method='NormalEquation'):
             #          [aux]
             lu_sol = factor.solve(v)
 
+            z = lu_sol[:n]
+
+            # Iterative refinement to improve roundoff
+            # errors described in [2]_, algorithm 5.2
+            k = 0
+            while orthogonality(A, z) > ORTH_TOLERANCE:
+                # new_v = [x] - [I A.T] * [ z ]
+                #         [0]   [A  O ]   [aux]
+                new_v = v - K.dot(lu_sol)
+
+                # [I A.T] * [delta  z ] = new_v
+                # [A  O ]   [delta aux]
+                lu_update = factor.solve(new_v)
+
+                #  [ z ] += [delta  z ]
+                #  [aux]    [delta aux]
+                lu_sol = lu_sol + lu_update
+
+                z = lu_sol[:n]
+                k += 1
+                if k > MAX_INTERACTIONS:
+                    break
+
             # return z = x - A.T inv(A A.T) A x
-            return lu_sol[:n]
+            return z
 
         # z = inv(A A.T) A x
         # is computed solving the extended system:
@@ -198,16 +290,16 @@ def projections(A, method='NormalEquation'):
     return Z, LS, Y
 
 
-def projected_cg(G, c, Z, Y, b, tol=None, return_all=False):
+def projected_cg(H, c, Z, Y, b, tol=None, return_all=False):
     """
     Solve equality-constrained quadratic programming (EQP) problem
-    ``min 1/2 x.T G x + x.t c``  subject to ``A x = b``
+    ``min 1/2 x.T H x + x.t c``  subject to ``A x = b``
     using projected cg method.
 
     Parameters
     ----------
-    G : LinearOperator, sparse matrix, ndarray
-        Operator for computing ``G v``.
+    H : LinearOperator, sparse matrix, ndarray
+        Operator for computing ``H v``.
     c : ndarray
         Unidimensional array.
     Z : LinearOperator, sparse matrix, ndarray
@@ -236,12 +328,14 @@ def projected_cg(G, c, Z, Y, b, tol=None, return_all=False):
 
     Notes
     -----
-    Algorithm 16.2 on [1]_ p.461.
+    Implementation of Algorithm 6.2 on [1]_.
 
     References
     ----------
-    .. [1] Nocedal, J, and S J Wright. 2006. Numerical Optimization.
-       Springer New York.
+    .. [1] Gould, Nicholas IM, Mary E. Hribar, and Jorge Nocedal.
+        "On the solution of equality constrained quadratic
+        programming problems arising in optimization."
+        SIAM Journal on Scientific Computing 23.4 (2001): 1376-1395.
     """
 
     n = len(c)  # Number of parameters
@@ -249,16 +343,16 @@ def projected_cg(G, c, Z, Y, b, tol=None, return_all=False):
 
     # Initial Values
     x = Y.dot(b)
-    r = G.dot(x) + c
+    r = Z.dot(H.dot(x) + c)
     g = Z.dot(r)
-    d = -g
+    p = -g
 
     # Store ``x`` value
     if return_all:
         allvecs = [x]
 
     # Values for the first iteration
-    G_d = G.dot(d)
+    H_p = H.dot(p)
     rt_g = r.dot(g)
 
     # Set default tolerance
@@ -266,23 +360,23 @@ def projected_cg(G, c, Z, Y, b, tol=None, return_all=False):
         tol = max(0.01 * np.sqrt(rt_g), 1e-8)
 
     k = 1
-    for i in range(n-m-1):
+    for i in range(n-m):
 
         # Stop Criteria r.T g < tol
         if rt_g < tol:
             break
 
         # Compute next step
-        dt_G_d = G_d.dot(d)
-        alpha = rt_g / dt_G_d
-        x = x + alpha*d
+        pt_H_p = H_p.dot(p)
+        alpha = rt_g / pt_H_p
+        x = x + alpha*p
 
         # Store ``x`` value
         if return_all:
             allvecs.append(x)
 
         # Update residual
-        r_next = r + alpha*G_d
+        r_next = r + alpha*H_p
 
         # Project residual g+ = Z r+
         g_next = Z.dot(r_next)
@@ -290,14 +384,13 @@ def projected_cg(G, c, Z, Y, b, tol=None, return_all=False):
         # Compute conjugate direction step d
         rt_g_next = r_next.dot(g_next)
         beta = rt_g_next / rt_g
-        d = - g_next + beta*d
-
+        p = - g_next + beta*p
 
         # Prepare for next iteration
         g = g_next
-        r = r_next
-        rt_g = rt_g_next
-        G_d = G.dot(d)
+        r = g_next
+        rt_g = r.dot(g)
+        H_p = H.dot(p)
         k += 1
 
     info = {'niter': k, 'step_norm': rt_g}
