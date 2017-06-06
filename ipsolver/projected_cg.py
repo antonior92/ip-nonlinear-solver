@@ -3,7 +3,8 @@ Equality-constrained quadratic programming solvers.
 """
 
 from __future__ import division, print_function, absolute_import
-from scipy.sparse import linalg, bmat, csc_matrix, eye
+from scipy.sparse import (linalg, bmat, csc_matrix, eye, issparse,
+                          isspmatrix_csc, isspmatrix_csr)
 from scipy.sparse.linalg import LinearOperator
 from sksparse.cholmod import cholesky_AAt
 import numpy as np
@@ -68,8 +69,9 @@ def orthogonality(A, g):
     Compute a measure of orthogonality between the null space
     of the (possibly sparse) matrix ``A`` and a given
     vector ``g``:
-    ``orth =  max_i(A[i, :].T g/(norm(A[i, :])*norm(g))``.
-    The formula is provided in [1]_, formula (3.13).
+    ``orth =  norm(A g)/(norm(A)*norm(g))``.
+    The formula is a more efficient version of
+    formula (3.13) from [1]_.
 
     References
     ----------
@@ -79,31 +81,23 @@ def orthogonality(A, g):
             SIAM Journal on Scientific Computing 23.4 (2001): 1376-1395.
     """
 
-    m, _ = np.shape(A)
-
+    # Compute vector norms
     norm_g = np.linalg.norm(g)
-    if norm_g == 0:
+
+    # Compute frobenius norm of the matrix A
+    if issparse(A):
+        norm_A  = linalg.norm(A, ord='fro') 
+    else:
+        norm_A = np.linalg.norm(A, ord='fro')  
+
+    # Check if norms are zero
+    if norm_g == 0 or norm_A == 0:
         return 0
-    At_g = A.dot(g)
 
-    orth = -np.Inf
-    for i in range(m):
-        Ai = A[i, :]
-        aux = np.sqrt(Ai.dot(Ai.T))
+    norm_A_g = np.linalg.norm(A.dot(g))
 
-        # This will depend if A is a matrix or an array
-        if isinstance(aux, float):
-            norm_A_row = aux
-        else:
-            norm_A_row = aux[0, 0]
-
-        if norm_A_row < 1e-30:
-            cos_theta = 1
-        else:
-            cos_theta = At_g[i]/(norm_A_row*norm_g)
-
-        if cos_theta > orth:
-            orth = min(1, cos_theta)
+    # Orthogonality measure
+    orth = norm_A_g/(norm_A*norm_g)
 
     return orth
 
@@ -290,7 +284,7 @@ def projections(A, method='NormalEquation'):
     return Z, LS, Y
 
 
-def projected_cg(H, c, Z, Y, b, tol=None, return_all=False):
+def projected_cg(H, c, Z, Y, b, tol=None, return_all=False, max_iter=None):
     """
     Solve equality-constrained quadratic programming (EQP) problem
     ``min 1/2 x.T H x + x.t c``  subject to ``A x = b``
@@ -310,7 +304,10 @@ def projected_cg(H, c, Z, Y, b, tol=None, return_all=False):
     b : ndarray
         Unidimensional array.
     tol : float
-        Tolerance used to interrupt the algorithm
+        Tolerance used to interrupt the algorithm.
+    max_inter : int
+        Maximum algorithm iteractions. Where ``max_inter <= n-m``. By default
+        uses ``max_iter = n-m``.
     return_all : bool
         When true return the list of all vectors through the iterations.
 
@@ -357,10 +354,15 @@ def projected_cg(H, c, Z, Y, b, tol=None, return_all=False):
 
     # Set default tolerance
     if tol is None:
-        tol = max(0.01 * np.sqrt(rt_g), 1e-8)
+        tol = max(0.01 * np.sqrt(rt_g), 1e-12)
+
+    # Set maximum iteractions
+    if max_iter is None:
+        max_iter = n-m
+    max_iter = min(max_iter, n-m)
 
     k = 1
-    for i in range(n-m):
+    for i in range(max_iter):
 
         # Stop Criteria r.T g < tol
         if rt_g < tol:
