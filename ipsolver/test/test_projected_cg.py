@@ -57,6 +57,29 @@ class TestProjections(TestCase):
                 x2 = np.linalg.lstsq(At_dense, z)[0]
                 assert_array_almost_equal(x, x2)
 
+    def test_iterative_refinements(self):
+        A_dense = np.array([[1, 2, 3, 4, 0, 5, 0, 7],
+                            [0, 8, 7, 0, 1, 5, 9, 0],
+                            [1, 0, 0, 0, 0, 1, 2, 3]])
+        At_dense = A_dense.T
+        A = csc_matrix(A_dense)
+
+        test_points = ([1, 2, 3, 4, 5, 6, 7, 8],
+                       [1, 10, 3, 0, 1, 6, 7, 8],
+                       [1.12, 10, 0, 0, 100000, 6, 0.7, 8],
+                       [1, 0, 0, 0, 0, 1, 2, 3+1e-10])
+
+        for method in ("NormalEquation", "AugmentedSystem"):
+            Z, LS, _ = projections(A, method, orth_tol=1e-18, max_refin=100)
+
+            for z in test_points:
+                # Test if x is in the null_space
+                x = Z.matvec(z)
+                assert_array_almost_equal(A.dot(x), 0, decimal=14)
+
+                # Test orthogonality
+                assert_array_almost_equal(orthogonality(A, x), 0, decimal=16)
+
     def test_rowspace(self):
 
         A_dense = np.array([[1, 2, 3, 4, 0, 5, 0, 7],

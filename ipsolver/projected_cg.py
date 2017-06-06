@@ -70,7 +70,7 @@ def orthogonality(A, g):
     of the (possibly sparse) matrix ``A`` and a given
     vector ``g``:
     ``orth =  norm(A g)/(norm(A)*norm(g))``.
-    The formula is a more efficient version of
+    The formula is a more cheaper (and simplified) version of
     formula (3.13) from [1]_.
 
     References
@@ -86,9 +86,9 @@ def orthogonality(A, g):
 
     # Compute frobenius norm of the matrix A
     if issparse(A):
-        norm_A  = linalg.norm(A, ord='fro') 
+        norm_A = linalg.norm(A, ord='fro')
     else:
-        norm_A = np.linalg.norm(A, ord='fro')  
+        norm_A = np.linalg.norm(A, ord='fro')
 
     # Check if norms are zero
     if norm_g == 0 or norm_A == 0:
@@ -102,7 +102,7 @@ def orthogonality(A, g):
     return orth
 
 
-def projections(A, method='NormalEquation'):
+def projections(A, method='NormalEquation', orth_tol=1e-12, max_refin=3):
     """
     Return three linear operators related with a given matrix A.
 
@@ -119,12 +119,18 @@ def projections(A, method='NormalEquation'):
                so-called normal equation approach
                explained in [1]_.
                In order to do so the Cholesky
-               factorization of ``(A A.T)`` is
-               computed using CHOLMOD.
+               factorization of ``(A A.T)``
+               is computed.
             - 'AugmentedSystem': The operators
                will be computed using the
                so-called augmented system approach
-               explained in [1]_ p.463.
+               explained in [1]_.
+
+    orth_tol : float
+        Tolerance for iterative refinements.
+    max_refin : int
+        Maximum number of iterative refinements
+
     Returns
     -------
     Z : LinearOperator
@@ -149,6 +155,12 @@ def projections(A, method='NormalEquation'):
         vector ``y = Q x``  the minimum norm solution
         of ``A y = x``
 
+    Notes
+    -----
+    Uses iterative refinements described in [1]
+    during the computation of ``Z`` in order to
+    cope with the possibility of large roundoff errors.
+
     References
     ----------
     .. [1] Gould, Nicholas IM, Mary E. Hribar, and Jorge Nocedal.
@@ -156,10 +168,6 @@ def projections(A, method='NormalEquation'):
         programming problems arising in optimization."
         SIAM Journal on Scientific Computing 23.4 (2001): 1376-1395.
     """
-
-    # Iterative Refinement Parameters
-    ORTH_TOLERANCE = 1e-12
-    MAX_INTERACTIONS = 3
 
     m, n = np.shape(A)
 
@@ -177,13 +185,14 @@ def projections(A, method='NormalEquation'):
             # Iterative refinement to improve roundoff
             # errors described in [2]_, algorithm 5.1
             k = 0
-            while orthogonality(A, z) > ORTH_TOLERANCE:
+            while orthogonality(A, z) > orth_tol:
+                if k >= max_refin:
+                    break
+
                 # z_next = z - A.T inv(A A.T) A z
                 v = factor(A.dot(z))
                 z = z - A.T.dot(v)
                 k += 1
-                if k > MAX_INTERACTIONS:
-                    break
 
             return z
 
@@ -224,7 +233,10 @@ def projections(A, method='NormalEquation'):
             # Iterative refinement to improve roundoff
             # errors described in [2]_, algorithm 5.2
             k = 0
-            while orthogonality(A, z) > ORTH_TOLERANCE:
+            while orthogonality(A, z) > orth_tol:
+                if k >= max_refin:
+                    break
+
                 # new_v = [x] - [I A.T] * [ z ]
                 #         [0]   [A  O ]   [aux]
                 new_v = v - K.dot(lu_sol)
@@ -239,8 +251,6 @@ def projections(A, method='NormalEquation'):
 
                 z = lu_sol[:n]
                 k += 1
-                if k > MAX_INTERACTIONS:
-                    break
 
             # return z = x - A.T inv(A A.T) A x
             return z
@@ -354,7 +364,7 @@ def projected_cg(H, c, Z, Y, b, tol=None, return_all=False, max_iter=None):
 
     # Set default tolerance
     if tol is None:
-        tol = max(0.01 * np.sqrt(rt_g), 1e-12)
+        tol = max(0.01 * np.sqrt(rt_g), 1e-20)
 
     # Set maximum iteractions
     if max_iter is None:
