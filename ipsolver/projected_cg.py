@@ -6,6 +6,7 @@ from __future__ import division, print_function, absolute_import
 from scipy.sparse import (linalg, bmat, csc_matrix, eye, issparse,
                           isspmatrix_csc, isspmatrix_csr)
 from scipy.sparse.linalg import LinearOperator
+import scipy.linalg
 from sksparse.cholmod import cholesky_AAt
 from math import copysign
 import numpy as np
@@ -128,14 +129,14 @@ def orthogonality(A, g):
     return orth
 
 
-def projections(A, method='NormalEquation', orth_tol=1e-12, max_refin=3):
+def projections(A, method=None, orth_tol=1e-12, max_refin=3):
     """
     Return three linear operators related with a given matrix A.
 
     Parameters
     ----------
-    A : sparse matrix
-         Matrix ``A`` used in the projection.
+    A : sparse matrix or ndarray
+        Matrix ``A`` used in the projection.
     method : string
         Method used for compute the given linear
         operators. Should be one of:
@@ -143,14 +144,18 @@ def projections(A, method='NormalEquation', orth_tol=1e-12, max_refin=3):
             - 'NormalEquation': The operators
                will be computed using the
                so-called normal equation approach
-               explained in [1]_.
-               In order to do so the Cholesky
-               factorization of ``(A A.T)``
-               is computed.
+               explained in [1]_. In order to do
+               so the Cholesky factorization of
+               ``(A A.T)`` is computed. Exclusive
+               for sparse matrices.
             - 'AugmentedSystem': The operators
                will be computed using the
                so-called augmented system approach
-               explained in [1]_.
+               explained in [1]_. Exclusive
+               for sparse matrices.
+            - 'QRFactorization': Compute projections
+               using QR factorization. Exclusive for
+               dense matrices.
 
     orth_tol : float
         Tolerance for iterative refinements.
@@ -186,6 +191,8 @@ def projections(A, method='NormalEquation', orth_tol=1e-12, max_refin=3):
     Uses iterative refinements described in [1]
     during the computation of ``Z`` in order to
     cope with the possibility of large roundoff errors.
+    The QR factorization method does not uses
+    iterative refinements.
 
     References
     ----------
@@ -196,6 +203,21 @@ def projections(A, method='NormalEquation', orth_tol=1e-12, max_refin=3):
     """
 
     m, n = np.shape(A)
+
+    # Check Argument
+    if issparse(A):
+        if method is None:
+            method = "AugmentedSystem"
+
+        if not (method in ("NormalEquation", "AugmentedSystem")):
+            raise ValueError("Method not allowed for the given matrix.")
+
+    else:
+        if method is None:
+            method = "QRFactorization"
+
+        if not (method in ("QRFactorization")):
+            raise ValueError("Method not allowed for the given matrix.")
 
     if method == 'NormalEquation':
 
@@ -312,6 +334,62 @@ def projections(A, method='NormalEquation', orth_tol=1e-12, max_refin=3):
 
             # return z = A.T inv(A A.T) x
             return lu_sol[:n]
+
+    elif method == "QRFactorization":
+
+        # QRFactorization
+        Q, R, P = scipy.linalg.qr(A.T, pivoting=True,  mode='economic')
+
+        # z = x - A.T inv(A A.T) A x
+        def null_space(x):
+
+            # v = P inv(R) Q.T x
+            aux1 = (Q.T).dot(x)
+            aux2 = scipy.linalg.solve_triangular(R, aux1, lower=False)
+            v = aux2[P]
+            z = x - A.T.dot(v)
+
+            # Iterative refinement to improve roundoff
+            # errors described in [2]_, algorithm 5.1
+            k = 0
+            while orthogonality(A, z) > orth_tol:
+                if k >= max_refin:
+                    break
+
+                # v = P inv(R) Q.T x
+                aux1 = (Q.T).dot(z)
+                aux2 = scipy.linalg.solve_triangular(R, aux1, lower=False)
+                v = aux2[P]
+
+                # z_next = z - A.T v
+                z = z - A.T.dot(v)
+                k += 1
+
+            return z
+
+        # z = inv(A A.T) A x
+        def least_squares(x):
+
+            # z = P inv(R) Q.T x
+            aux1 = (Q.T).dot(x)
+            aux2 = scipy.linalg.solve_triangular(R, aux1, lower=False)
+            z = aux2[P]
+
+            return z
+
+        # z = A.T inv(A A.T) x
+        def row_space(x):
+
+            # z = Q inv(R.T) P.T x
+            aux1 = np.zeros(m)
+            aux1[P] = x
+            aux2 = scipy.linalg.solve_triangular(R, aux1,
+                                                 lower=False,
+                                                 trans='T')
+            z = Q.dot(aux2)
+
+            return z
+
 
     Z = LinearOperator((n, n), null_space)
     LS = LinearOperator((m, n), least_squares)

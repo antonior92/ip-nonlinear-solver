@@ -30,7 +30,7 @@ class TestEQPDirectFactorization(TestCase):
 
 class TestProjections(TestCase):
 
-    def test_nullspace_and_least_squares(self):
+    def test_nullspace_and_least_squares_sparse(self):
         A_dense = np.array([[1, 2, 3, 4, 0, 5, 0, 7],
                             [0, 8, 7, 0, 1, 5, 9, 0],
                             [1, 0, 0, 0, 0, 1, 2, 3]])
@@ -57,7 +57,7 @@ class TestProjections(TestCase):
                 x2 = np.linalg.lstsq(At_dense, z)[0]
                 assert_array_almost_equal(x, x2)
 
-    def test_iterative_refinements(self):
+    def test_iterative_refinements_sparse(self):
         A_dense = np.array([[1, 2, 3, 4, 0, 5, 0, 7],
                             [0, 8, 7, 0, 1, 5, 9, 0],
                             [1, 0, 0, 0, 0, 1, 2, 3]])
@@ -80,7 +80,7 @@ class TestProjections(TestCase):
                 # Test orthogonality
                 assert_array_almost_equal(orthogonality(A, x), 0, decimal=16)
 
-    def test_rowspace(self):
+    def test_rowspace_sparse(self):
 
         A_dense = np.array([[1, 2, 3, 4, 0, 5, 0, 7],
                             [0, 8, 7, 0, 1, 5, 9, 0],
@@ -103,6 +103,75 @@ class TestProjections(TestCase):
                 # Test if x is in the return row space of A
                 A_ext = np.vstack((A_dense, x))
                 assert_equal(np.linalg.matrix_rank(A_dense),
+                             np.linalg.matrix_rank(A_ext))
+
+    def test_nullspace_and_least_squares_dense(self):
+        A = np.array([[1, 2, 3, 4, 0, 5, 0, 7],
+                      [0, 8, 7, 0, 1, 5, 9, 0],
+                      [1, 0, 0, 0, 0, 1, 2, 3]])
+        At = A.T
+
+        test_points = ([1, 2, 3, 4, 5, 6, 7, 8],
+                       [1, 10, 3, 0, 1, 6, 7, 8],
+                       [1.12, 10, 0, 0, 100000, 6, 0.7, 8])
+
+        for method in ("QRFactorization",):
+            Z, LS, _ = projections(A, method)
+
+            for z in test_points:
+                # Test if x is in the null_space
+                x = Z.matvec(z)
+                assert_array_almost_equal(A.dot(x), 0)
+
+                # Test orthogonality
+                assert_array_almost_equal(orthogonality(A, x), 0)
+
+                # Test if x is the least square solution
+                x = LS.matvec(z)
+                x2 = np.linalg.lstsq(At, z)[0]
+                assert_array_almost_equal(x, x2)
+
+    def test_iterative_refinements_dense(self):
+        A = np.array([[1, 2, 3, 4, 0, 5, 0, 7],
+                            [0, 8, 7, 0, 1, 5, 9, 0],
+                            [1, 0, 0, 0, 0, 1, 2, 3]])
+
+        test_points = ([1, 2, 3, 4, 5, 6, 7, 8],
+                       [1, 10, 3, 0, 1, 6, 7, 8],
+                       [1, 0, 0, 0, 0, 1, 2, 3+1e-10])
+
+        for method in ("QRFactorization",):
+            Z, LS, _ = projections(A, method, orth_tol=1e-18, max_refin=10)
+
+            for z in test_points:
+                # Test if x is in the null_space
+                x = Z.matvec(z)
+                assert_array_almost_equal(A.dot(x), 0, decimal=14)
+
+                # Test orthogonality
+                assert_array_almost_equal(orthogonality(A, x), 0, decimal=16)
+
+    def test_rowspace_dense(self):
+
+        A = np.array([[1, 2, 3, 4, 0, 5, 0, 7],
+                      [0, 8, 7, 0, 1, 5, 9, 0],
+                      [1, 0, 0, 0, 0, 1, 2, 3]])
+
+        test_points = ([1, 2, 3],
+                       [1, 10, 3],
+                       [1.12, 10, 0])
+
+        for method in ('QRFactorization',):
+            _, _, Y = projections(A, method)
+
+            for z in test_points:
+                # Test if x is solution of A x = z
+                x = Y.matvec(z)
+                assert_array_almost_equal(A.dot(x), z)
+
+                # Test if x is in the return row space of A
+                A_ext = np.vstack((A, x))
+                assert_equal(np.linalg.matrix_rank(A),
                              np.linalg.matrix_rank(A_ext))
 
 
