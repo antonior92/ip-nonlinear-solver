@@ -66,7 +66,7 @@ def eqp_kktfact(H, c, A, b):
     return x, lagrange_multipliers
 
 
-def get_boundaries_intersections(self, z, d, trust_radius):
+def get_boundaries_intersections(z, d, trust_radius):
         """
         Solve the scalar quadratic equation ||z + t d|| == trust_radius.
         This is like a line-sphere intersection.
@@ -75,7 +75,7 @@ def get_boundaries_intersections(self, z, d, trust_radius):
         a = np.dot(d, d)
         b = 2 * np.dot(z, d)
         c = np.dot(z, z) - trust_radius**2
-        sqrt_discriminant = math.sqrt(b*b - 4*a*c)
+        sqrt_discriminant = np.sqrt(b*b - 4*a*c)
 
         # The following calculation is mathematically
         # equivalent to:
@@ -320,12 +320,12 @@ def projections(A, method='NormalEquation', orth_tol=1e-12, max_refin=3):
     return Z, LS, Y
 
 
-def projected_cg(H, c, Z, Y, b, tol=None, return_all=False, max_iter=None,
-                 trust_radius=np.inf):
+def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
+                 tol=None, return_all=False, max_iter=None):
     """
     Solve equality-constrained quadratic programming (EQP) problem
-    ``min 1/2 x.T H x + x.t c``  subject to ``A x = b``
-    using projected cg method.
+    ``min 1/2 x.T H x + x.t c``  subject to ``A x = b`` and
+    to ``||x|| < trust_radius`` using projected cg method.
 
     Parameters
     ----------
@@ -340,15 +340,16 @@ def projected_cg(H, c, Z, Y, b, tol=None, return_all=False, max_iter=None,
         of ``A x = b``.
     b : ndarray
         Unidimensional array.
+    trust_radius : float
+        Trust radius to be considered. By default uses ``trust_radius=inf``,
+        which means no trust radius at all.
     tol : float
         Tolerance used to interrupt the algorithm.
     max_inter : int
         Maximum algorithm iteractions. Where ``max_inter <= n-m``. By default
         uses ``max_iter = n-m``.
     return_all : bool
-        When true return the list of all vectors through the iterations.
-    trust_radius : float
-        Trust radius to be considered. By default uses ``trust_radius=inf``.
+        When ``true`` return the list of all vectors through the iterations.
 
     Returns
     -------
@@ -396,6 +397,23 @@ def projected_cg(H, c, Z, Y, b, tol=None, return_all=False, max_iter=None,
     H_p = H.dot(p)
     rt_g = r.dot(g)
 
+    # If x > trust-region the problem does not have a solution
+    tr_distance = trust_radius - np.linalg.norm(x)
+    if tr_distance < 0:
+        raise ValueError("Trust region problem does not have a solution.")
+
+    # If x == trust_radius, then x is the solution
+    # to the optimization problem, since x is the
+    # minimum norm solution to Ax=b
+    elif tr_distance < 1e-12:
+        hits_boundary = True
+        info = {'niter': 0, 'stop_cond': 2}
+        if return_all:
+            allvecs.append(x)
+            info['allvecs'] = allvecs
+
+        return x, hits_boundary, info
+
     # Set default tolerance
     if tol is None:
         tol = max(0.01 * np.sqrt(rt_g), 1e-20)
@@ -408,22 +426,25 @@ def projected_cg(H, c, Z, Y, b, tol=None, return_all=False, max_iter=None,
     hits_boundary = False
     stop_cond = 1
 
-    k = 1
+    k = 0
     for i in range(max_iter):
 
-        # Stop criteria - Check tolerance :r.T g < tol
+        # Stop criteria - Tolerance : r.T g < tol
         if rt_g < tol:
             stop_cond = 4
             break
 
+        k += 1
+
         # Compute curvature
         pt_H_p = H_p.dot(p)
 
-        # Stop criteria - Check for negative curvature
+        # Stop criteria - Negative curvature
         if pt_H_p <= 0:
             if np.isinf(trust_radius):
-                raise ValueError("Negative curvature for unrestrited problem.")
-
+                    raise ValueError("Negative curvature not "
+                                     "allowed for unrestrited "
+                                     "problems.")
             else:
                 # Find positive value of alpha such:
                 # ||x + alpha p|| == trust_radius
@@ -441,10 +462,10 @@ def projected_cg(H, c, Z, Y, b, tol=None, return_all=False, max_iter=None,
 
         # Get next step
         alpha = rt_g / pt_H_p
-        x = x + alpha*p
+        x_next = x + alpha*p
 
         # Stop criteria - Hits boundary
-        if np.linalg.norm(x) >= trust_radius:
+        if np.linalg.norm(x_next) >= trust_radius:
             # Find positive value of alpha such:
             # ||x + alpha p|| == trust_radius
             _, alpha = get_boundaries_intersections(x, p, trust_radius)
@@ -455,9 +476,9 @@ def projected_cg(H, c, Z, Y, b, tol=None, return_all=False, max_iter=None,
 
             break
 
-        # Store ``x`` value
+        # Store ``x_next`` value
         if return_all:
-            allvecs.append(x)
+            allvecs.append(x_next)
 
         # Update residual
         r_next = r + alpha*H_p
@@ -471,11 +492,11 @@ def projected_cg(H, c, Z, Y, b, tol=None, return_all=False, max_iter=None,
         p = - g_next + beta*p
 
         # Prepare for next iteration
+        x = x_next
         g = g_next
         r = g_next
         rt_g = r.dot(g)
         H_p = H.dot(p)
-        k += 1
 
     info = {'niter': k, 'stop_cond': stop_cond}
     if return_all:
