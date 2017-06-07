@@ -7,13 +7,15 @@ from scipy.sparse import (linalg, bmat, csc_matrix, eye, issparse,
                           isspmatrix_csc, isspmatrix_csr)
 from scipy.sparse.linalg import LinearOperator
 from sksparse.cholmod import cholesky_AAt
+from math import copysign
 import numpy as np
 
 __all__ = [
     'eqp_kktfact',
+    'get_boundaries_intersections',
+    'orthogonality',
     'projections',
-    'projected_cg',
-    'orthogonality'
+    'projected_cg'
 ]
 
 
@@ -62,6 +64,30 @@ def eqp_kktfact(H, c, A, b):
     lagrange_multipliers = -kkt_sol[n:n+m]
 
     return x, lagrange_multipliers
+
+
+def get_boundaries_intersections(self, z, d, trust_radius):
+        """
+        Solve the scalar quadratic equation ||z + t d|| == trust_radius.
+        This is like a line-sphere intersection.
+        Return the two values of t, sorted from low to high.
+        """
+        a = np.dot(d, d)
+        b = 2 * np.dot(z, d)
+        c = np.dot(z, z) - trust_radius**2
+        sqrt_discriminant = math.sqrt(b*b - 4*a*c)
+
+        # The following calculation is mathematically
+        # equivalent to:
+        # ta = (-b - sqrt_discriminant) / (2*a)
+        # tb = (-b + sqrt_discriminant) / (2*a)
+        # but produce smaller round off errors.
+        # Look at Matrix Computation p.97
+        # for a better justification.
+        aux = b + copysign(sqrt_discriminant, b)
+        ta = -aux / (2*a)
+        tb = -2*c / aux
+        return sorted([ta, tb])
 
 
 def orthogonality(A, g):
@@ -294,7 +320,8 @@ def projections(A, method='NormalEquation', orth_tol=1e-12, max_refin=3):
     return Z, LS, Y
 
 
-def projected_cg(H, c, Z, Y, b, tol=None, return_all=False, max_iter=None):
+def projected_cg(H, c, Z, Y, b, tol=None, return_all=False, max_iter=None,
+                 trust_radius=np.inf):
     """
     Solve equality-constrained quadratic programming (EQP) problem
     ``min 1/2 x.T H x + x.t c``  subject to ``A x = b``
@@ -302,11 +329,11 @@ def projected_cg(H, c, Z, Y, b, tol=None, return_all=False, max_iter=None):
 
     Parameters
     ----------
-    H : LinearOperator, sparse matrix, ndarray
+    H : LinearOperator, sparse matrix or ndarray
         Operator for computing ``H v``.
     c : ndarray
         Unidimensional array.
-    Z : LinearOperator, sparse matrix, ndarray
+    Z : LinearOperator, sparse matrix or ndarray
         Operator for projecting ``x`` into the null space of A.
     Y : LinearOperator,  sparse matrix, ndarray
         Operator that, for a given a vector ``b``, compute a solution of
@@ -320,17 +347,24 @@ def projected_cg(H, c, Z, Y, b, tol=None, return_all=False, max_iter=None):
         uses ``max_iter = n-m``.
     return_all : bool
         When true return the list of all vectors through the iterations.
+    trust_radius : float
+        Trust radius to be considered. By default uses ``trust_radius=inf``.
 
     Returns
     -------
     x : ndarray
         Solution of the KKT problem
+    hits_boundary : bool
+        True if the proposed step is on the boundary of the trust region.
     info : Dict
         Dictionary containing the following:
 
             - niter : Number of iteractions.
-            - step_norm : gives the norm of the last step ``d`` scalated
-                          by the projection matrix ``Z``, that is: ``d.T Z d``.
+            - stop_cond : Reason for algorithm termination:
+                1. Iteration limit was reached;
+                2. Termination from trust-region bound;
+                3. Negative curvature detected;
+                4. tolerance was satisfied.
             - allvecs : List containing all intermediary vectors (optional).
 
     Notes
@@ -371,17 +405,55 @@ def projected_cg(H, c, Z, Y, b, tol=None, return_all=False, max_iter=None):
         max_iter = n-m
     max_iter = min(max_iter, n-m)
 
+    hits_boundary = False
+    stop_cond = 1
+
     k = 1
     for i in range(max_iter):
 
-        # Stop Criteria r.T g < tol
+        # Stop criteria - Check tolerance :r.T g < tol
         if rt_g < tol:
+            stop_cond = 4
             break
 
-        # Compute next step
+        # Compute curvature
         pt_H_p = H_p.dot(p)
+
+        # Stop criteria - Check for negative curvature
+        if pt_H_p <= 0:
+            if np.isinf(trust_radius):
+                raise ValueError("Negative curvature for unrestrited problem.")
+
+            else:
+                # Find positive value of alpha such:
+                # ||x + alpha p|| == trust_radius
+                _, alpha = get_boundaries_intersections(x, p, trust_radius)
+
+                x = x + alpha*p
+                hits_boundary = True
+                stop_cond = 3
+
+                # Store ``x`` value
+                if return_all:
+                    allvecs.append(x)
+
+                break
+
+        # Get next step
         alpha = rt_g / pt_H_p
         x = x + alpha*p
+
+        # Stop criteria - Hits boundary
+        if np.linalg.norm(x) >= trust_radius:
+            # Find positive value of alpha such:
+            # ||x + alpha p|| == trust_radius
+            _, alpha = get_boundaries_intersections(x, p, trust_radius)
+
+            x = x + alpha*p
+            hits_boundary = True
+            stop_cond = 2
+
+            break
 
         # Store ``x`` value
         if return_all:
@@ -405,8 +477,9 @@ def projected_cg(H, c, Z, Y, b, tol=None, return_all=False, max_iter=None):
         H_p = H.dot(p)
         k += 1
 
-    info = {'niter': k, 'step_norm': rt_g}
+    info = {'niter': k, 'stop_cond': stop_cond}
     if return_all:
+        allvecs.append(x)
         info['allvecs'] = allvecs
 
-    return x, info
+    return x, hits_boundary, info

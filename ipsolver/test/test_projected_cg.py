@@ -172,7 +172,7 @@ class TestProjectCG(TestCase):
 
         Z, _, Y = projections(A)
 
-        x, info = projected_cg(H, c, Z, Y, b)
+        x, hits_boundary, info = projected_cg(H, c, Z, Y, b)
 
         assert_array_almost_equal(x, [2, -1, 1])
 
@@ -189,7 +189,7 @@ class TestProjectCG(TestCase):
 
         Z, _, Y = projections(A)
 
-        x, info = projected_cg(H, c, Z, Y, b, tol=0)
+        x, hits_boundary, info = projected_cg(H, c, Z, Y, b, tol=0)
         x_kkt, _ = eqp_kktfact(H, c, A, b)
 
         assert_array_almost_equal(x, x_kkt)
