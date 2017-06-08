@@ -22,34 +22,36 @@ __all__ = [
 
 # For comparison with the projected CG
 def eqp_kktfact(H, c, A, b):
-    """
-    Solve equality-constrained quadratic programming (EQP) problem
-    ``min 1/2 x.T H x + x.t c``  subject to ``A x = b``
+    """Solve equality-constrained quadratic programming (EQP) problem.
+
+    Solve ``min 1/2 x.T H x + x.t c``  subject to ``A x = b``
     using direct factorization of the KKT system.
 
     Parameters
     ----------
-    H, A : sparse matrix
-        Hessian and Jacobian matrix of the EQP problem.
-    c, b : ndarray
-
-
-        Unidimensional arrays.
+    H : sparse matrix, shape (n, n)
+        Hessian matrix of the EQP problem.
+    c : array_like, shape (n,)
+        Gradient of the quadratic objective function.
+    A : sparse matrix
+        Jacobian matrix of the EQP problem.
+    b : array_like, shape (m,)
+        Right-hand side of the constraint equation.
 
     Returns
     -------
-    x : ndarray
+    x : array_like, shape (n,)
         Solution of the KKT problem.
-    lagrange_multipliers : ndarray
+    lagrange_multipliers : ndarray, shape (m,)
         Lagrange multipliers of the KKT problem.
     """
 
-    n = len(c)  # Number of parameters
-    m = len(b)  # Number of constraints
+    n, = np.shape(c)  # Number of parameters
+    m, = np.shape(b)  # Number of constraints
 
     # Karush-Kuhn-Tucker matrix of coeficients.
     # Defined as in Nocedal/Wright "Numerical
-    # Optimization" p.452 in Eq. (16.4)
+    # Optimization" p.452 in Eq. (16.4).
     kkt_matrix = csc_matrix(bmat([[H, A.T], [A, None]]))
 
     # Vector of coeficients.
@@ -57,7 +59,7 @@ def eqp_kktfact(H, c, A, b):
 
     # TODO: Use a symmetric indefinite factorization
     #       to solve the system twice as fast (because
-    #       of the symmetry)
+    #       of the symmetry).
     lu = linalg.splu(kkt_matrix)
     kkt_sol = lu.solve(kkt_vec)
 
@@ -68,10 +70,10 @@ def eqp_kktfact(H, c, A, b):
 
 
 def get_boundaries_intersections(z, d, trust_radius):
-        """
-        Solve the scalar quadratic equation ||z + t d|| == trust_radius.
-        This is like a line-sphere intersection.
-        Return the two values of t, sorted from low to high.
+        """Solve the scalar quadratic equation ||z + t d|| == trust_radius.
+
+        This is like a line-sphere intersection. Return the two values of t,
+        sorted from low to high.
         """
         a = np.dot(d, d)
         b = 2 * np.dot(z, d)
@@ -92,13 +94,14 @@ def get_boundaries_intersections(z, d, trust_radius):
 
 
 def orthogonality(A, g):
-    """
+    """Measure of the orthogonality between a vector and the null space of matrix.
+
     Compute a measure of orthogonality between the null space
-    of the (possibly sparse) matrix ``A`` and a given
-    vector ``g``:
-    ``orth =  norm(A g)/(norm(A)*norm(g))``.
-    The formula is a more cheaper (and simplified) version of
-    formula (3.13) from [1]_.
+    of the (possibly sparse) matrix ``A`` and a given vector ``g``.
+
+    The formula is a simplified (and cheaper) version of formula (3.13)
+    from [1]_.
+    ``orth =  norm(A g, ord=2)/(norm(A, ord='fro')*norm(g, ord=2))``.
 
     References
     ----------
@@ -130,12 +133,11 @@ def orthogonality(A, g):
 
 
 def projections(A, method=None, orth_tol=1e-12, max_refin=3):
-    """
-    Return three linear operators related with a given matrix A.
+    """Return three linear operators related with a given matrix A.
 
     Parameters
     ----------
-    A : sparse matrix or ndarray
+    A : sparse matrix (or ndarray), shape (m, n)
         Matrix ``A`` used in the projection.
     method : string
         Method used for compute the given linear
@@ -164,35 +166,33 @@ def projections(A, method=None, orth_tol=1e-12, max_refin=3):
 
     Returns
     -------
-    Z : LinearOperator
+    Z : LinearOperator, shape (n, n)
         Null-space operator. For a given vector ``x``,
         the null space operator is equivalent to apply
         a projection matrix ``P = I - A.T inv(A A.T) A``
         to the vector. It can be shown that this is
         equivalent to project ``x`` into the null space
         of A.
-    LS : LinearOperator
+    LS : LinearOperator, shape (m, n)
         Least-Square operator. For a given vector ``x``,
         the least-square operator is equivalent to apply a
         pseudoinverse matrix ``pinv(A.T) = inv(A A.T) A``
         to the vector. It can be shown that this vector
         ``pinv(A.T) x`` is the least_square solution to
         ``A.T y = x``.
-    Y : LinearOperator
+    Y : LinearOperator, shape (m, m)
         Row-space operator. For a given vector ``x``,
         the row-space operator is equivalent to apply a
         projection matrix ``Q = A.T inv(A A.T)``
         to the vector.  It can be shown that this
         vector ``y = Q x``  the minimum norm solution
-        of ``A y = x``
+        of ``A y = x``.
 
     Notes
     -----
     Uses iterative refinements described in [1]
     during the computation of ``Z`` in order to
     cope with the possibility of large roundoff errors.
-    The QR factorization method does not uses
-    iterative refinements.
 
     References
     ----------
@@ -209,14 +209,14 @@ def projections(A, method=None, orth_tol=1e-12, max_refin=3):
         if method is None:
             method = "AugmentedSystem"
 
-        if not (method in ("NormalEquation", "AugmentedSystem")):
+        if method not in ("NormalEquation", "AugmentedSystem"):
             raise ValueError("Method not allowed for the given matrix.")
 
     else:
         if method is None:
             method = "QRFactorization"
 
-        if not (method in ("QRFactorization")):
+        if method not in ("QRFactorization"):
             raise ValueError("Method not allowed for the given matrix.")
 
     if method == 'NormalEquation':
@@ -231,7 +231,7 @@ def projections(A, method=None, orth_tol=1e-12, max_refin=3):
             z = x - A.T.dot(v)
 
             # Iterative refinement to improve roundoff
-            # errors described in [2]_, algorithm 5.1
+            # errors described in [2]_, algorithm 5.1.
             k = 0
             while orthogonality(A, z) > orth_tol:
                 if k >= max_refin:
@@ -260,7 +260,7 @@ def projections(A, method=None, orth_tol=1e-12, max_refin=3):
         # LU factorization
         # TODO: Use a symmetric indefinite factorization
         #       to solve the system twice as fast (because
-        #       of the symmetry)
+        #       of the symmetry).
         factor = linalg.splu(K)
 
         # z = x - A.T inv(A A.T) A x
@@ -279,7 +279,7 @@ def projections(A, method=None, orth_tol=1e-12, max_refin=3):
             z = lu_sol[:n]
 
             # Iterative refinement to improve roundoff
-            # errors described in [2]_, algorithm 5.2
+            # errors described in [2]_, algorithm 5.2.
             k = 0
             while orthogonality(A, z) > orth_tol:
                 if k >= max_refin:
@@ -295,7 +295,7 @@ def projections(A, method=None, orth_tol=1e-12, max_refin=3):
 
                 #  [ z ] += [delta  z ]
                 #  [aux]    [delta aux]
-                lu_sol = lu_sol + lu_update
+                lu_sol += lu_update
 
                 z = lu_sol[:n]
                 k += 1
@@ -350,7 +350,7 @@ def projections(A, method=None, orth_tol=1e-12, max_refin=3):
             z = x - A.T.dot(v)
 
             # Iterative refinement to improve roundoff
-            # errors described in [2]_, algorithm 5.1
+            # errors described in [2]_, algorithm 5.1.
             k = 0
             while orthogonality(A, z) > orth_tol:
                 if k >= max_refin:
@@ -390,7 +390,6 @@ def projections(A, method=None, orth_tol=1e-12, max_refin=3):
 
             return z
 
-
     Z = LinearOperator((n, n), null_space)
     LS = LinearOperator((m, n), least_squares)
     Y = LinearOperator((n, m), row_space)
@@ -400,38 +399,39 @@ def projections(A, method=None, orth_tol=1e-12, max_refin=3):
 
 def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
                  tol=None, return_all=False, max_iter=None):
-    """
-    Solve equality-constrained quadratic programming (EQP) problem
-    ``min 1/2 x.T H x + x.t c``  subject to ``A x = b`` and
-    to ``||x|| < trust_radius`` using projected cg method.
+    """Solve EQP problem with projected CG method.
+
+    Solve equality-constrained quadratic programming problem
+    ``min 1/2 x.T H x + x.t c``  subject to ``A x = b`` and,
+    possibly, to trust region constraints ``||x|| < trust_radius``.
 
     Parameters
     ----------
-    H : LinearOperator, sparse matrix or ndarray
+    H : LinearOperator (or sparse matrix or ndarray), shape (n, n)
         Operator for computing ``H v``.
-    c : ndarray
-        Unidimensional array.
-    Z : LinearOperator, sparse matrix or ndarray
+    c : array_like, shape (n,)
+        Gradient of the quadratic objective function.
+    Z : LinearOperator (or sparse matrix or ndarray), shape (n, n)
         Operator for projecting ``x`` into the null space of A.
-    Y : LinearOperator,  sparse matrix, ndarray
-        Operator that, for a given a vector ``b``, compute a solution of
-        of ``A x = b``.
-    b : ndarray
-        Unidimensional array.
+    Y : LinearOperator,  sparse matrix, ndarray, shape (n, m)
+        Operator that, for a given a vector ``b``, compute smallest
+        norm solution of ``A x = b``.
+    b : array_like, shape (m,)
+        Right-hand side of the constraint equation.
     trust_radius : float
         Trust radius to be considered. By default uses ``trust_radius=inf``,
         which means no trust radius at all.
     tol : float
         Tolerance used to interrupt the algorithm.
     max_inter : int
-        Maximum algorithm iteractions. Where ``max_inter <= n-m``. By default
-        uses ``max_iter = n-m``.
+        Maximum algorithm iteractions. Where ``max_inter <= n-m``.
+        By default uses ``max_iter = n-m``.
     return_all : bool
         When ``true`` return the list of all vectors through the iterations.
 
     Returns
     -------
-    x : ndarray
+    x : array_like, shape (n,)
         Solution of the KKT problem
     hits_boundary : bool
         True if the proposed step is on the boundary of the trust region.
@@ -458,8 +458,8 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
         SIAM Journal on Scientific Computing 23.4 (2001): 1376-1395.
     """
 
-    n = len(c)  # Number of parameters
-    m = len(b)  # Number of constraints
+    n, = np.shape(c)  # Number of parameters
+    m, = np.shape(b)  # Number of constraints
 
     # Initial Values
     x = Y.dot(b)
@@ -475,14 +475,14 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
     H_p = H.dot(p)
     rt_g = r.dot(g)
 
-    # If x > trust-region the problem does not have a solution
+    # If x > trust-region the problem does not have a solution.
     tr_distance = trust_radius - np.linalg.norm(x)
     if tr_distance < 0:
         raise ValueError("Trust region problem does not have a solution.")
 
     # If x == trust_radius, then x is the solution
     # to the optimization problem, since x is the
-    # minimum norm solution to Ax=b
+    # minimum norm solution to Ax=b.
     elif tr_distance < 1e-12:
         hits_boundary = True
         info = {'niter': 0, 'stop_cond': 2}
@@ -525,7 +525,7 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
                                      "problems.")
             else:
                 # Find positive value of alpha such:
-                # ||x + alpha p|| == trust_radius
+                # ||x + alpha p|| == trust_radius.
                 _, alpha = get_boundaries_intersections(x, p, trust_radius)
 
                 x = x + alpha*p
@@ -545,7 +545,7 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
         # Stop criteria - Hits boundary
         if np.linalg.norm(x_next) >= trust_radius:
             # Find positive value of alpha such:
-            # ||x + alpha p|| == trust_radius
+            # ||x + alpha p|| == trust_radius.
             _, alpha = get_boundaries_intersections(x, p, trust_radius)
 
             x = x + alpha*p
