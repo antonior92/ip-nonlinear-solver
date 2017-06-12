@@ -13,7 +13,8 @@ import numpy as np
 
 __all__ = [
     'eqp_kktfact',
-    'get_boundaries_intersections',
+    'spherical_boundaries_intersections',
+    'box_boundaries_intersections',
     'orthogonality',
     'projections',
     'projected_cg'
@@ -69,28 +70,70 @@ def eqp_kktfact(H, c, A, b):
     return x, lagrange_multipliers
 
 
-def get_boundaries_intersections(z, d, trust_radius):
-        """Solve the scalar quadratic equation ||z + t d|| == trust_radius.
+def spherical_boundaries_intersections(z, d, trust_radius):
+    """Solve the scalar quadratic equation ||z + t d|| == trust_radius.
 
-        This is like a line-sphere intersection. Return the two values of t,
-        sorted from low to high.
-        """
-        a = np.dot(d, d)
-        b = 2 * np.dot(z, d)
-        c = np.dot(z, z) - trust_radius**2
-        sqrt_discriminant = np.sqrt(b*b - 4*a*c)
+    This is like a line-sphere intersection. Return the two values of t,
+    sorted from low to high.
+    """
+    a = np.dot(d, d)
+    b = 2 * np.dot(z, d)
+    c = np.dot(z, z) - trust_radius**2
+    sqrt_discriminant = np.sqrt(b*b - 4*a*c)
 
-        # The following calculation is mathematically
-        # equivalent to:
-        # ta = (-b - sqrt_discriminant) / (2*a)
-        # tb = (-b + sqrt_discriminant) / (2*a)
-        # but produce smaller round off errors.
-        # Look at Matrix Computation p.97
-        # for a better justification.
-        aux = b + copysign(sqrt_discriminant, b)
-        ta = -aux / (2*a)
-        tb = -2*c / aux
-        return sorted([ta, tb])
+    # The following calculation is mathematically
+    # equivalent to:
+    # ta = (-b - sqrt_discriminant) / (2*a)
+    # tb = (-b + sqrt_discriminant) / (2*a)
+    # but produce smaller round off errors.
+    # Look at Matrix Computation p.97
+    # for a better justification.
+    aux = b + copysign(sqrt_discriminant, b)
+    ta = -aux / (2*a)
+    tb = -2*c / aux
+    return sorted([ta, tb])
+
+
+def box_boundaries_intersections(z, d, lb, ub):
+    """Find the intersection between line ``z + t d`` and box constraints."""
+
+    # Make sure it is a numpy array
+    z = np.asarray(z)
+    d = np.asarray(d)
+    lb = np.asarray(lb)
+    ub = np.asarray(ub)
+
+    # Get values for which d==0
+    zero_d = (d == 0)
+
+    # If the boundaries are not satisfied for some coordinate
+    # for which "d" is zero, there is no box-line intersection
+    if (z[zero_d] < lb[zero_d]).any() or  (z[zero_d] > ub[zero_d]).any():
+        intersect = False
+        return 0, 0, intersect
+
+    # Remove values for which d is zero
+    not_zero_d = np.logical_not(zero_d)
+    z = z[not_zero_d]
+    d = d[not_zero_d]
+    lb = lb[not_zero_d]
+    ub = ub[not_zero_d]
+
+    # Find a series of intervals (t_lb[i], t_ub[i])
+    t_lb = (lb-z) / d
+    t_ub = (ub-z) / d
+
+    # Get the intersection of all those intervals
+    ta = max(np.minimum(ta_vec, tb_vec))
+    tb = min(np.maximum(ta_vec, tb_vec))
+
+    # Check if intersection is feasible
+    if ta <= tb:
+        intersect = True
+    else:
+        intersect = False
+
+    return ta, tb, intersect
 
 
 def orthogonality(A, g):
@@ -526,7 +569,8 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
             else:
                 # Find positive value of alpha such:
                 # ||x + alpha p|| == trust_radius.
-                _, alpha = get_boundaries_intersections(x, p, trust_radius)
+                _, alpha = spherical_boundaries_intersections(x, p,
+                                                              trust_radius)
 
                 x = x + alpha*p
                 hits_boundary = True
@@ -546,7 +590,7 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
         if np.linalg.norm(x_next) >= trust_radius:
             # Find positive value of alpha such:
             # ||x + alpha p|| == trust_radius.
-            _, alpha = get_boundaries_intersections(x, p, trust_radius)
+            _, alpha = spherical_boundaries_intersections(x, p, trust_radius)
 
             x = x + alpha*p
             hits_boundary = True
