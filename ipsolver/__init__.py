@@ -2,7 +2,7 @@
 ipsolver
 """
 
-from .projected_cg import *
+from .qp_subproblem import *
 
 
 __all__ = [s for s in dir() if not s.startswith('_')]

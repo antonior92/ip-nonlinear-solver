@@ -2,7 +2,7 @@ import numpy as np
 from scipy.sparse import csc_matrix
 from ipsolver import (eqp_kktfact, projections, projected_cg, orthogonality,
                       box_boundaries_intersections,
-                      spherical_boundaries_intersections)
+                      sphere_boundaries_intersections)
 from numpy.testing import (TestCase, assert_array_almost_equal,
                            assert_array_equal, assert_array_less,
                            assert_raises, assert_equal, assert_,
@@ -30,42 +30,110 @@ class TestEQPDirectFactorization(TestCase):
         assert_array_almost_equal(lagrange_multipliers, [3, -2])
 
 
+class TestSphericalBoundariesIntersections(TestCase):
+
+    def test_2d_sphere_constraints(self):
+
+        # Interior inicial point
+        ta, tb, intersect = sphere_boundaries_intersections([0, 0],
+                                                               [1, 0], 0.5)
+        assert_array_almost_equal([ta, tb], [0, 0.5])
+        assert_equal(intersect, True)
+
+        # No intersection between line and circle
+        ta, tb, intersect = sphere_boundaries_intersections([2, 0],
+                                                               [0, 1], 1)
+        assert_equal(intersect, False)
+
+        # Outside inicial point pointing toward outside the circle
+        ta, tb, intersect = sphere_boundaries_intersections([2, 0],
+                                                               [1, 0], 1)
+        assert_equal(intersect, False)
+
+        # Outside inicial point pointing toward inside the circle
+        ta, tb, intersect = sphere_boundaries_intersections([2, 0],
+                                                               [-1, 0], 1.5)
+        assert_array_almost_equal([ta, tb], [0.5, 1])
+        assert_equal(intersect, True)
+
+        # Inicial point on the boundary
+        ta, tb, intersect = sphere_boundaries_intersections([2, 0],
+                                                               [1, 0], 2)
+        assert_array_almost_equal([ta, tb], [0, 0])
+        assert_equal(intersect, True)
+
+    def test_2d_sphere_constraints_entire_line(self):
+
+        # Interior inicial point
+        ta, tb, intersect = sphere_boundaries_intersections([0, 0],
+                                                               [1, 0], 0.5,
+                                                               entire_line=True)
+        assert_array_almost_equal([ta, tb], [-0.5, 0.5])
+        assert_equal(intersect, True)
+
+        # No intersection between line and circle
+        ta, tb, intersect = sphere_boundaries_intersections([2, 0],
+                                                               [0, 1], 1,
+                                                               entire_line=True)
+        assert_equal(intersect, False)
+
+        # Outside inicial point pointing toward outside the circle
+        ta, tb, intersect = sphere_boundaries_intersections([2, 0],
+                                                               [1, 0], 1,
+                                                               entire_line=True)
+        assert_array_almost_equal([ta, tb], [-3, -1])
+        assert_equal(intersect, True)
+
+        # Outside inicial point pointing toward inside the circle
+        ta, tb, intersect = sphere_boundaries_intersections([2, 0],
+                                                               [-1, 0], 1.5,
+                                                               entire_line=True)
+        assert_array_almost_equal([ta, tb], [0.5, 3.5])
+        assert_equal(intersect, True)
+
+        # Inicial point on the boundary
+        ta, tb, intersect = sphere_boundaries_intersections([2, 0],
+                                                               [1, 0], 2,
+                                                               entire_line=True)
+        assert_array_almost_equal([ta, tb], [-4, 0])
+        assert_equal(intersect, True)
+
+
 class TestBoxBoundariesIntersections(TestCase):
 
     def test_2d_box_constraints(self):
 
-        # Simple case
+        # Box constraint in the direction of vector d
         ta, tb, intersect = box_boundaries_intersections([2, 0], [0, 2],
                                                          [1, 1], [3, 3])
-        assert_array_almost_equal([ta, tb], [0.5, 1.5])
+        assert_array_almost_equal([ta, tb], [0.5, 1])
         assert_equal(intersect, True)
 
         # Negative direction
         ta, tb, intersect = box_boundaries_intersections([2, 0], [0, 2],
                                                          [1, -3], [3, -1])
-        assert_array_almost_equal([ta, tb], [-1.5, -0.5])
-        assert_equal(intersect, True)
+        assert_equal(intersect, False)
 
         # Some constraints are absent (set to +/- inf)
         ta, tb, intersect = box_boundaries_intersections([2, 0], [0, 2],
                                                          [-np.inf, 1],
                                                          [np.inf, np.inf])
-        assert_array_almost_equal([ta, tb], [0.5, np.inf])
+        assert_array_almost_equal([ta, tb], [0.5, 1])
         assert_equal(intersect, True)
 
         # Intersect on the face of the box
         ta, tb, intersect = box_boundaries_intersections([1, 0], [0, 1],
                                                          [1, 1], [3, 3])
-        assert_array_almost_equal([ta, tb], [1, 3])
+        assert_array_almost_equal([ta, tb], [1, 1])
         assert_equal(intersect, True)
 
-        # Interior Point
-        ta, tb, intersect = box_boundaries_intersections([0, 0], [1, 1],
+        # Interior inicial pointoint
+        ta, tb, intersect = box_boundaries_intersections([0, 0], [4, 4],
                                                          [-2, -3], [3, 2])
-        assert_array_almost_equal([ta, tb], [-2, 2])
+        assert_array_almost_equal([ta, tb], [0, 0.5])
         assert_equal(intersect, True)
 
-        # Unfeasible cases
+        # No intersection between line and box constraints
         ta, tb, intersect = box_boundaries_intersections([2, 0], [0, 2],
                                                          [-3, -3], [-1, -1])
         assert_equal(intersect, False)
@@ -83,24 +151,120 @@ class TestBoxBoundariesIntersections(TestCase):
                                                          [1, 1], [3, 3])
         assert_equal(intersect, False)
 
+        # Inicial point on the boundary
+        ta, tb, intersect = box_boundaries_intersections([2, 2], [0, 1],
+                                                         [-2, -2], [2, 2])
+        assert_array_almost_equal([ta, tb], [0, 0])
+        assert_equal(intersect, True)
+
+    def test_2d_box_constraints_entire_line(self):
+
+        # Box constraint in the direction of vector d
+        ta, tb, intersect = box_boundaries_intersections([2, 0], [0, 2],
+                                                         [1, 1], [3, 3],
+                                                         entire_line=True)
+        assert_array_almost_equal([ta, tb], [0.5, 1.5])
+        assert_equal(intersect, True)
+
+        # Negative direction
+        ta, tb, intersect = box_boundaries_intersections([2, 0], [0, 2],
+                                                         [1, -3], [3, -1],
+                                                         entire_line=True)
+        assert_array_almost_equal([ta, tb], [-1.5, -0.5])
+        assert_equal(intersect, True)
+
+        # Some constraints are absent (set to +/- inf)
+        ta, tb, intersect = box_boundaries_intersections([2, 0], [0, 2],
+                                                         [-np.inf, 1],
+                                                         [np.inf, np.inf],
+                                                         entire_line=True)
+        assert_array_almost_equal([ta, tb], [0.5, np.inf])
+        assert_equal(intersect, True)
+
+        # Intersect on the face of the box
+        ta, tb, intersect = box_boundaries_intersections([1, 0], [0, 1],
+                                                         [1, 1], [3, 3],
+                                                         entire_line=True)
+        assert_array_almost_equal([ta, tb], [1, 3])
+        assert_equal(intersect, True)
+
+        # Interior inicial pointoint
+        ta, tb, intersect = box_boundaries_intersections([0, 0], [4, 4],
+                                                         [-2, -3], [3, 2],
+                                                         entire_line=True)
+        assert_array_almost_equal([ta, tb], [-0.5, 0.5])
+        assert_equal(intersect, True)
+
+        # No intersection between line and box constraints
+        ta, tb, intersect = box_boundaries_intersections([2, 0], [0, 2],
+                                                         [-3, -3], [-1, -1],
+                                                         entire_line=True)
+        assert_equal(intersect, False)
+        ta, tb, intersect = box_boundaries_intersections([2, 0], [0, 2],
+                                                         [-3, 3], [-1, 1],
+                                                         entire_line=True)
+        assert_equal(intersect, False)
+        ta, tb, intersect = box_boundaries_intersections([2, 0], [0, 2],
+                                                         [-3, -np.inf],
+                                                         [-1, np.inf],
+                                                         entire_line=True)
+        assert_equal(intersect, False)
+        ta, tb, intersect = box_boundaries_intersections([0, 0], [1, 100],
+                                                         [1, 1], [3, 3],
+                                                         entire_line=True)
+        assert_equal(intersect, False)
+        ta, tb, intersect = box_boundaries_intersections([0.99, 0], [0, 2],
+                                                         [1, 1], [3, 3],
+                                                         entire_line=True)
+        assert_equal(intersect, False)
+
+        # Inicial point on the boundary
+        ta, tb, intersect = box_boundaries_intersections([2, 2], [0, 1],
+                                                         [-2, -2], [2, 2],
+                                                         entire_line=True)
+        assert_array_almost_equal([ta, tb], [-4, 0])
+        assert_equal(intersect, True)
+
     def test_3d_box_constraints(self):
 
         # Simple case
         ta, tb, intersect = box_boundaries_intersections([1, 1, 0], [0, 0, 1],
                                                          [1, 1, 1], [3, 3, 3])
-        assert_array_almost_equal([ta, tb], [1, 3])
+        assert_array_almost_equal([ta, tb], [1, 1])
         assert_equal(intersect, True)
 
         # Negative direction
         ta, tb, intersect = box_boundaries_intersections([1, 1, 0], [0, 0, -1],
                                                          [1, 1, 1], [3, 3, 3])
+        assert_equal(intersect, False)
+
+        # Interior Point
+        ta, tb, intersect = box_boundaries_intersections([2, 2, 2], [0, -1, 1],
+                                                         [1, 1, 1], [3, 3, 3])
+        assert_array_almost_equal([ta, tb], [0, 1])
+        assert_equal(intersect, True)
+
+    def test_3d_box_constraints_entire_line(self):
+
+        # Simple case
+        ta, tb, intersect = box_boundaries_intersections([1, 1, 0], [0, 0, 1],
+                                                         [1, 1, 1], [3, 3, 3],
+                                                         entire_line=True)
+        assert_array_almost_equal([ta, tb], [1, 3])
+        assert_equal(intersect, True)
+
+        # Negative direction
+        ta, tb, intersect = box_boundaries_intersections([1, 1, 0], [0, 0, -1],
+                                                         [1, 1, 1], [3, 3, 3],
+                                                         entire_line=True)
         assert_array_almost_equal([ta, tb], [-3, -1])
         assert_equal(intersect, True)
 
         # Interior Point
         ta, tb, intersect = box_boundaries_intersections([2, 2, 2], [0, -1, 1],
-                                                         [1, 1, 1], [3, 3, 3])
-        assert_array_almost_equal([ta, tb], [-3, -1])
+                                                         [1, 1, 1], [3, 3, 3],
+                                                         entire_line=True)
+        assert_array_almost_equal([ta, tb], [-1, 1])
         assert_equal(intersect, True)
 
 

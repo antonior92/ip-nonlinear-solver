@@ -13,7 +13,7 @@ import numpy as np
 
 __all__ = [
     'eqp_kktfact',
-    'spherical_boundaries_intersections',
+    'sphere_boundaries_intersections',
     'box_boundaries_intersections',
     'orthogonality',
     'projections',
@@ -70,7 +70,8 @@ def eqp_kktfact(H, c, A, b):
     return x, lagrange_multipliers
 
 
-def spherical_boundaries_intersections(z, d, trust_radius):
+def sphere_boundaries_intersections(z, d, trust_radius,
+                                       entire_line=False):
     """Solve the scalar quadratic equation ||z + t d|| == trust_radius.
 
     This is like a line-sphere intersection. Return the two values of t,
@@ -79,7 +80,13 @@ def spherical_boundaries_intersections(z, d, trust_radius):
     a = np.dot(d, d)
     b = 2 * np.dot(z, d)
     c = np.dot(z, z) - trust_radius**2
-    sqrt_discriminant = np.sqrt(b*b - 4*a*c)
+    discriminant = b*b - 4*a*c
+
+    if discriminant < 0:
+        intersect = False
+        return 0, 0, intersect
+
+    sqrt_discriminant = np.sqrt(discriminant)
 
     # The following calculation is mathematically
     # equivalent to:
@@ -91,10 +98,31 @@ def spherical_boundaries_intersections(z, d, trust_radius):
     aux = b + copysign(sqrt_discriminant, b)
     ta = -aux / (2*a)
     tb = -2*c / aux
-    return sorted([ta, tb])
+
+    ta, tb = sorted([ta, tb])
+
+    if entire_line:
+        intersect = True
+    else:
+        # Checks to see if intersection happens
+        # within vectors lenght.
+        if tb < 0 or ta > 1:
+            intersect = False
+            ta = 0
+            tb = 0
+        else:
+            intersect = True
+
+            # Restrict intersection interval
+            # between 0 and 1
+            ta = max(0, ta)
+            tb = min(1, tb)
+
+    return ta, tb, intersect
 
 
-def box_boundaries_intersections(z, d, lb, ub):
+def box_boundaries_intersections(z, d, lb, ub,
+                                 entire_line=False):
     """Find the intersection between line ``z + t d`` and box constraints."""
 
     # Make sure it is a numpy array
@@ -108,7 +136,7 @@ def box_boundaries_intersections(z, d, lb, ub):
 
     # If the boundaries are not satisfied for some coordinate
     # for which "d" is zero, there is no box-line intersection
-    if (z[zero_d] < lb[zero_d]).any() or  (z[zero_d] > ub[zero_d]).any():
+    if (z[zero_d] < lb[zero_d]).any() or (z[zero_d] > ub[zero_d]).any():
         intersect = False
         return 0, 0, intersect
 
@@ -124,8 +152,8 @@ def box_boundaries_intersections(z, d, lb, ub):
     t_ub = (ub-z) / d
 
     # Get the intersection of all those intervals
-    ta = max(np.minimum(ta_vec, tb_vec))
-    tb = min(np.maximum(ta_vec, tb_vec))
+    ta = max(np.minimum(t_lb, t_ub))
+    tb = min(np.maximum(t_lb, t_ub))
 
     # Check if intersection is feasible
     if ta <= tb:
@@ -133,7 +161,153 @@ def box_boundaries_intersections(z, d, lb, ub):
     else:
         intersect = False
 
+    # Checks to see if intersection happens
+    # within vectors lenght.
+    if not entire_line:
+        if tb < 0 or ta > 1:
+            intersect = False
+            ta = 0
+            tb = 0
+        else:
+            intersect = intersect and True
+
+            # Restrict intersection interval
+            # between 0 and 1
+            ta = max(0, ta)
+            tb = min(1, tb)
+
     return ta, tb, intersect
+
+
+def box_sphere_boundaries_intersection(z, d, lb, ub, trust_radius,
+                                       entire_line=False):
+    """Find the intersection between line and box/sphere constrains."""
+
+    ta_b, tb_b, intersects_b = box_boundaries_intersections(z, d, lb, ub,
+                                                            entire_line)
+    ta_s, tb_s, intersects_s = sphere_boundaries_intersections(z, d,
+                                                               trust_radius,
+                                                               entire_line)
+
+    ta = np.maximum(ta_b, ta_s)
+    tb = np.minimum(tb_b, tb_s)
+
+    if intersects_b and intersects_s and ta <= tb:
+        intersects = True
+    else:
+        intersects = False
+
+    return ta, tb, intersects
+
+
+def inside_boundaries(x, lb, ub):
+    "Check if lb <= x <= ub."
+
+    return (lb <= x).all() and (x <= ub).all()
+
+
+def modified_dogleg(A, Y, b, trust_radius, lb, ub):
+    """Approximatelly  minimize ``1/2*|| A x + b ||^2`` inside trust-region.
+
+    Approximatelly solve the problem of minimizing ``1/2*|| A x + b ||^2``
+    subject to ``||x|| < Delta`` and ``lb <= x <= ub`` using a modification
+    of the classical dogleg approach.
+
+    Parameters
+    ----------
+    A : LinearOperator (or sparse matrix or ndarray), shape (m, n)
+        Matrix ``A`` in the minimization problem. It should have
+        dimension ``(m, n)`` such that ``m < n``.
+    Y : LinearOperator (or sparse matrix or ndarray), shape (m, m)
+        LinearOperator that apply the projection matrix
+        ``Q = A.T inv(A A.T)`` to the vector.  The obtained vector
+        ``y = Q x`` being the minimum norm solution of ``A y = x``.
+    b : array_like, shape (m,)
+        Vector ``b``in the minimization problem.
+    trust_radius: float
+        Trust radius to be considered. Delimits a sphere boundary
+        to the problem.
+    lb : array_like, shape (n,)
+        Vector lower bounds to each one of the components of ``x``.
+        It is expected that ``lb <= 0``, otherwise the algorithm
+        may fail. If ``lb[i] = -Inf`` the lower
+        bound for the i-th component is just ignored.
+    ub : array_like, shape (n, )
+        Vector upper bounds to each one of the components of ``x``.
+        It is expected that ``ub >= 0``, otherwise the algorithm
+        may fail. If ``ub[i] = Inf`` the upper bound for the i-th
+        component is just ignored.
+
+    Returns
+    -------
+    x : array_like, shape (n,)
+        Solution to the problem
+
+    Notes
+    -----
+    Based on implementations described in p.p. 885-886 from [1]_.
+
+    References
+    ----------
+    .. [1] Byrd, Richard H., Mary E. Hribar, and Jorge Nocedal.
+           "An interior point algorithm for large-scale nonlinear
+           programming." SIAM Journal on Optimization 9.4 (1999): 877-900.
+    """
+
+    # Compute minimum norm minimizer of 1/2*|| A x + b ||^2
+    newton_point = -Y.dot(b)
+
+    # Check for interior poinr
+    if inside_boundaries(newton_point, lb, ub)  \
+       and np.linalg.norm(newton_point) <= trust_radius:
+        x = newton_point
+        return x
+
+    # Compute gradient vector ``g``
+    g = A.dot(b)
+
+    # Compute cauchy point `
+    # `cauchy_point = g.T g / (g.T A.T A g)``
+    A_g = A.dot(g)
+    cauchy_point = -np.dot(g, g) / np.dot(A_g, A_g) * g
+
+    # Origin
+    origin_point = np.zeros_like(cauchy_point)
+
+    # Check the segment between cauchy_point and newton_point
+    # for a possible solution
+    z = cauchy_point
+    p = newton_point - cauchy_point
+    _, alpha, intersect = box_sphere_boundaries_intersection(z, p, lb, ub,
+                                                             trust_radius)
+
+    if intersect:
+        x1 = z + alpha*p
+
+    else:
+        # Check the segment between the origin and cauchy_point
+        # for a possible solution
+        z = origin_point
+        d = cauchy_point
+        _, alpha, _ = box_sphere_boundaries_intersection(z, p, lb, ub,
+                                                         trust_radius)
+
+        x1 = z + alpha*d
+
+    # Check the segment between origin and newton_point
+    # for a possible solution
+    z = origin_point
+    p = newton_point
+    _, alpha, _ = box_sphere_boundaries_intersection(z, p, lb, ub,
+                                                     trust_radius)
+
+    x2 = z + alpha*d
+
+    # Return the best solution among x1 and x2
+    if np.linalg.norm(A.dot(x1) + b) < np.linalg.norm(A.dot(x2) + b):
+        return x1
+    else:
+        return x2
 
 
 def orthogonality(A, g):
@@ -496,9 +670,9 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
     References
     ----------
     .. [1] Gould, Nicholas IM, Mary E. Hribar, and Jorge Nocedal.
-        "On the solution of equality constrained quadratic
-        programming problems arising in optimization."
-        SIAM Journal on Scientific Computing 23.4 (2001): 1376-1395.
+           "On the solution of equality constrained quadratic
+            programming problems arising in optimization."
+            SIAM Journal on Scientific Computing 23.4 (2001): 1376-1395.
     """
 
     n, = np.shape(c)  # Number of parameters
@@ -569,8 +743,9 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
             else:
                 # Find positive value of alpha such:
                 # ||x + alpha p|| == trust_radius.
-                _, alpha = spherical_boundaries_intersections(x, p,
-                                                              trust_radius)
+                _, alpha, _ = sphere_boundaries_intersections(x, p,
+                                                                   trust_radius,
+                                                                   entire_line=True)
 
                 x = x + alpha*p
                 hits_boundary = True
@@ -590,7 +765,8 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
         if np.linalg.norm(x_next) >= trust_radius:
             # Find positive value of alpha such:
             # ||x + alpha p|| == trust_radius.
-            _, alpha = spherical_boundaries_intersections(x, p, trust_radius)
+            _, alpha, _ = sphere_boundaries_intersections(x, p,
+                                                             trust_radius)
 
             x = x + alpha*p
             hits_boundary = True
