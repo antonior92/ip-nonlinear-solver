@@ -16,6 +16,7 @@ __all__ = [
     'spherical_boundaries_intersections',
     'box_boundaries_intersections',
     'box_sphere_boundaries_intersections',
+    'modified_dogleg',
     'orthogonality',
     'projections',
     'projected_cg'

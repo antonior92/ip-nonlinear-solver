@@ -3,7 +3,8 @@ from scipy.sparse import csc_matrix
 from ipsolver import (eqp_kktfact, projections, projected_cg, orthogonality,
                       box_boundaries_intersections,
                       spherical_boundaries_intersections,
-                      box_sphere_boundaries_intersections)
+                      box_sphere_boundaries_intersections,
+                      modified_dogleg)
 from numpy.testing import (TestCase, assert_array_almost_equal,
                            assert_array_equal, assert_array_less,
                            assert_raises, assert_equal, assert_,
@@ -351,6 +352,86 @@ class TestBoxSphereBoundariesIntersections(TestCase):
                                                                 line_intersections=True)
         assert_equal(intersect, False)
 
+
+class TestModifiedDogleg(TestCase):
+
+    def test_cauchypoint_equalsto_newtonpoint(self):
+
+        A = np.array([[1, 8]])
+        b = np.array([-16])
+        _, _, Y = projections(A)
+
+        newton_point = np.array([ 0.24615385,  1.96923077])
+        cauchy_point = newton_point
+        origin = np.zeros_like(newton_point)
+
+        # Newton point inside boundaries:
+        x = modified_dogleg(A, Y, b, 2, [-np.inf, -np.inf], [np.inf, np.inf])
+        assert_array_almost_equal(x, newton_point)
+
+        # Spherical constraint active
+        x = modified_dogleg(A, Y, b, 1, [-np.inf, -np.inf], [np.inf, np.inf])
+        assert_array_almost_equal(x, newton_point / np.linalg.norm(newton_point))
+
+        # Box Constraints active
+        x = modified_dogleg(A, Y, b, 2, [-np.inf, -np.inf], [0.1, np.inf])
+        assert_array_almost_equal(x, (newton_point/newton_point[0]) * 0.1)
+
+    def test_3d_example(self):
+
+        A = np.array([[1, 8, 1],
+                      [4, 2, 2]])
+        b = np.array([-16, 2])
+        Z, LS, Y = projections(A)
+
+        newton_point = np.array([-1.37090909, 2.23272727, -0.49090909])
+        cauchy_point = np.array([ 0.11165723, 1.73068711, 0.16748585])
+        origin = np.zeros_like(newton_point)
+
+        # newton_point inside boundaries:
+        x = modified_dogleg(A, Y, b, 3, [-np.inf, -np.inf, -np.inf],
+                            [np.inf, np.inf, np.inf])
+        assert_array_almost_equal(x, newton_point)
+
+        # line between cauchy_point and newton_point contains best point
+        # (spherical constrain is active)
+        x = modified_dogleg(A, Y, b, 2, [-np.inf, -np.inf, -np.inf],
+                            [np.inf, np.inf, np.inf])
+        z = cauchy_point
+        d = newton_point-cauchy_point
+        t = ((x-z)/(d))
+        assert_array_almost_equal(t, 0.40807330*np.ones(3))
+        assert_array_almost_equal(np.linalg.norm(x), 2)
+
+        # line between cauchy_point and newton_point contains best point
+        # (box constrain is active)
+        x = modified_dogleg(A, Y, b, 5, [-1, -np.inf, -np.inf],
+                            [np.inf, np.inf, np.inf])
+        z = cauchy_point
+        d = newton_point-cauchy_point
+        t = ((x-z)/(d))
+        assert_array_almost_equal(t, 0.7498195*np.ones(3))
+        assert_array_almost_equal(x[0], -1)
+
+        # line between origin and cauchy_point contains best point
+        # (spherical constrain is active)
+        x = modified_dogleg(A, Y, b, 1, [-np.inf, -np.inf, -np.inf],
+                            [np.inf, np.inf, np.inf])
+        z = origin
+        d = cauchy_point
+        t = ((x-z)/(d))
+        assert_array_almost_equal(t, 0.573936265*np.ones(3))
+        assert_array_almost_equal(np.linalg.norm(x), 1)
+
+        # line between origin and newton_point contains best point
+        # (box constrain is active)
+        x = modified_dogleg(A, Y, b, 2, [-np.inf, -np.inf, -np.inf],
+                            [np.inf, 1, np.inf])
+        z = origin
+        d = newton_point
+        t = ((x-z)/(d))
+        assert_array_almost_equal(t, 0.4478827364*np.ones(3))
+        assert_array_almost_equal(x[1], 1)
 
 class TestProjections(TestCase):
 
