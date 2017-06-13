@@ -13,8 +13,9 @@ import numpy as np
 
 __all__ = [
     'eqp_kktfact',
-    'sphere_boundaries_intersections',
+    'spherical_boundaries_intersections',
     'box_boundaries_intersections',
+    'box_sphere_boundaries_intersections',
     'orthogonality',
     'projections',
     'projected_cg'
@@ -70,12 +71,37 @@ def eqp_kktfact(H, c, A, b):
     return x, lagrange_multipliers
 
 
-def sphere_boundaries_intersections(z, d, trust_radius,
-                                       entire_line=False):
-    """Solve the scalar quadratic equation ||z + t d|| == trust_radius.
+def spherical_boundaries_intersections(z, d, trust_radius,
+                                       line_intersections=False):
+    """Find the intersection between segment (or line) and spherical constraints.
 
-    This is like a line-sphere intersection. Return the two values of t,
-    sorted from low to high.
+    Find the intersection between the segment (or line) defined by the
+    parametric  equation ``x(t) = z + t*d`` and the ball
+    ``||x|| <= trust_radius``.
+
+    Parameters
+    ----------
+    z : array_like, shape (n,)
+        Initial point.
+    d : array_like, shape (n,)
+        Direction.
+    trust_radius : float
+        Ball radius.
+    line_intersections : bool
+        When ``True`` the function returns the intersection between the line
+        ``x(t) = z + t*d`` (``t`` can assume any value) and the ball
+        ``||x|| <= trust_radius``. When ``False`` returns the intersection
+        between the segment ``x(t) = z + t*d``, ``0 <= t <= 1``, and the ball.
+
+    Returns
+    -------
+    ta, tb : float
+        The line/segment ``x(t) = z + t*d`` is inside the ball for
+        for ``ta <= t <= tb``.
+    intersect : bool
+        When ``True`` there is a intersection between the line/segment
+        and the sphere. On the other hand, when ``False``, there is no
+        intersection.
     """
     a = np.dot(d, d)
     b = 2 * np.dot(z, d)
@@ -101,7 +127,7 @@ def sphere_boundaries_intersections(z, d, trust_radius,
 
     ta, tb = sorted([ta, tb])
 
-    if entire_line:
+    if line_intersections:
         intersect = True
     else:
         # Checks to see if intersection happens
@@ -122,8 +148,41 @@ def sphere_boundaries_intersections(z, d, trust_radius,
 
 
 def box_boundaries_intersections(z, d, lb, ub,
-                                 entire_line=False):
-    """Find the intersection between line ``z + t d`` and box constraints."""
+                                 line_intersections=False):
+    """Find the intersection between segment (or line) and box constraints.
+
+    Find the intersection between the segment (or line) defined by the
+    parametric  equation ``x(t) = z + t*d`` and the retangular box
+    ``lb <= x <= ub``.
+
+    Parameters
+    ----------
+    z : array_like, shape (n,)
+        Initial point.
+    d : array_like, shape (n,)
+        Direction.
+    lb : array_like, shape (n,)
+        Lower bounds to each one of the components of ``x``. Used
+        to delimit the retangular box.
+    ub : array_like, shape (n, )
+        Upper bounds to each one of the components of ``x``. Used
+        to delimit the retangular box.
+    line_intersections : bool
+        When ``True`` the function returns the intersection between the line
+        ``x(t) = z + t*d`` (``t`` can assume any value) and the retangular box.
+        When ``False`` returns the intersection between the segment
+        ``x(t) = z + t*d``, ``0 <= t <= 1``, and the retangular box.
+
+    Returns
+    -------
+    ta, tb : float
+        The line/segment ``x(t) = z + t*d`` is inside the box for
+        for ``ta <= t <= tb``.
+    intersect : bool
+        When ``True`` there is a intersection between the line (or segment)
+        and the retangular box. On the other hand, when ``False``, there is no
+        intersection.
+    """
 
     # Make sure it is a numpy array
     z = np.asarray(z)
@@ -163,14 +222,12 @@ def box_boundaries_intersections(z, d, lb, ub,
 
     # Checks to see if intersection happens
     # within vectors lenght.
-    if not entire_line:
+    if not line_intersections:
         if tb < 0 or ta > 1:
             intersect = False
             ta = 0
             tb = 0
         else:
-            intersect = intersect and True
-
             # Restrict intersection interval
             # between 0 and 1
             ta = max(0, ta)
@@ -179,28 +236,63 @@ def box_boundaries_intersections(z, d, lb, ub,
     return ta, tb, intersect
 
 
-def box_sphere_boundaries_intersection(z, d, lb, ub, trust_radius,
-                                       entire_line=False):
-    """Find the intersection between line and box/sphere constrains."""
+def box_sphere_boundaries_intersections(z, d, lb, ub, trust_radius,
+                                        line_intersections=False):
+    """Find the intersection between segment (or line) and box/sphere constraints.
 
-    ta_b, tb_b, intersects_b = box_boundaries_intersections(z, d, lb, ub,
-                                                            entire_line)
-    ta_s, tb_s, intersects_s = sphere_boundaries_intersections(z, d,
-                                                               trust_radius,
-                                                               entire_line)
+    Find the intersection between the segment (or line) defined by the
+    parametric  equation ``x(t) = z + t*d``,  the retangular box
+    ``lb <= x <= ub`` and the ball ``||x|| <= trust_radius``.
+
+    Parameters
+    ----------
+    z : array_like, shape (n,)
+        Initial point.
+    d : array_like, shape (n,)
+        Direction.
+    lb : array_like, shape (n,)
+        Lower bounds to each one of the components of ``x``. Used
+        to delimit the retangular box.
+    ub : array_like, shape (n, )
+        Upper bounds to each one of the components of ``x``. Used
+        to delimit the retangular box.
+    trust_radius : float
+        Ball radius.
+    line_intersections : bool
+        When ``True`` the function returns the intersection between the line
+        ``x(t) = z + t*d`` (``t`` can assume any value) and the constraints.
+        When ``False`` returns the intersection between the segment
+        ``x(t) = z + t*d``, ``0 <= t <= 1`` and the constraints.
+
+    Returns
+    -------
+    ta, tb : float
+        The line/segment ``x(t) = z + t*d`` is inside the retangular box and
+        inside the ball for for ``ta <= t <= tb``.
+    intersect : bool
+        When ``True`` there is a intersection between the line (or segment)
+        and the constraints. On the other hand, when ``False``, there is no
+        intersection.
+    """
+
+    ta_b, tb_b, intersect_b = box_boundaries_intersections(z, d, lb, ub,
+                                                           line_intersections)
+    ta_s, tb_s, intersect_s = spherical_boundaries_intersections(z, d,
+                                                                 trust_radius,
+                                                                 line_intersections)
 
     ta = np.maximum(ta_b, ta_s)
     tb = np.minimum(tb_b, tb_s)
 
-    if intersects_b and intersects_s and ta <= tb:
-        intersects = True
+    if intersect_b and intersect_s and ta <= tb:
+        intersect = True
     else:
-        intersects = False
+        intersect = False
 
-    return ta, tb, intersects
+    return ta, tb, intersect
 
 
-def inside_boundaries(x, lb, ub):
+def inside_box_boundaries(x, lb, ub):
     "Check if lb <= x <= ub."
 
     return (lb <= x).all() and (x <= ub).all()
@@ -218,7 +310,7 @@ def modified_dogleg(A, Y, b, trust_radius, lb, ub):
     A : LinearOperator (or sparse matrix or ndarray), shape (m, n)
         Matrix ``A`` in the minimization problem. It should have
         dimension ``(m, n)`` such that ``m < n``.
-    Y : LinearOperator (or sparse matrix or ndarray), shape (m, m)
+    Y : LinearOperator (or sparse matrix or ndarray), shape (n, m)
         LinearOperator that apply the projection matrix
         ``Q = A.T inv(A A.T)`` to the vector.  The obtained vector
         ``y = Q x`` being the minimum norm solution of ``A y = x``.
@@ -228,12 +320,12 @@ def modified_dogleg(A, Y, b, trust_radius, lb, ub):
         Trust radius to be considered. Delimits a sphere boundary
         to the problem.
     lb : array_like, shape (n,)
-        Vector lower bounds to each one of the components of ``x``.
+        Lower bounds to each one of the components of ``x``.
         It is expected that ``lb <= 0``, otherwise the algorithm
         may fail. If ``lb[i] = -Inf`` the lower
         bound for the i-th component is just ignored.
     ub : array_like, shape (n, )
-        Vector upper bounds to each one of the components of ``x``.
+        Upper bounds to each one of the components of ``x``.
         It is expected that ``ub >= 0``, otherwise the algorithm
         may fail. If ``ub[i] = Inf`` the upper bound for the i-th
         component is just ignored.
@@ -258,15 +350,15 @@ def modified_dogleg(A, Y, b, trust_radius, lb, ub):
     newton_point = -Y.dot(b)
 
     # Check for interior poinr
-    if inside_boundaries(newton_point, lb, ub)  \
+    if inside_box_boundaries(newton_point, lb, ub)  \
        and np.linalg.norm(newton_point) <= trust_radius:
         x = newton_point
         return x
 
-    # Compute gradient vector ``g``
-    g = A.dot(b)
+    # Compute gradient vector ``g = A.T b``
+    g = A.T.dot(b)
 
-    # Compute cauchy point `
+    # Compute cauchy point
     # `cauchy_point = g.T g / (g.T A.T A g)``
     A_g = A.dot(g)
     cauchy_point = -np.dot(g, g) / np.dot(A_g, A_g) * g
@@ -278,8 +370,8 @@ def modified_dogleg(A, Y, b, trust_radius, lb, ub):
     # for a possible solution
     z = cauchy_point
     p = newton_point - cauchy_point
-    _, alpha, intersect = box_sphere_boundaries_intersection(z, p, lb, ub,
-                                                             trust_radius)
+    _, alpha, intersect = box_sphere_boundaries_intersections(z, p, lb, ub,
+                                                              trust_radius)
 
     if intersect:
         x1 = z + alpha*p
@@ -288,20 +380,20 @@ def modified_dogleg(A, Y, b, trust_radius, lb, ub):
         # Check the segment between the origin and cauchy_point
         # for a possible solution
         z = origin_point
-        d = cauchy_point
-        _, alpha, _ = box_sphere_boundaries_intersection(z, p, lb, ub,
-                                                         trust_radius)
+        p = cauchy_point
+        _, alpha, _ = box_sphere_boundaries_intersections(z, p, lb, ub,
+                                                          trust_radius)
 
-        x1 = z + alpha*d
+        x1 = z + alpha*p
 
     # Check the segment between origin and newton_point
     # for a possible solution
     z = origin_point
     p = newton_point
-    _, alpha, _ = box_sphere_boundaries_intersection(z, p, lb, ub,
-                                                     trust_radius)
+    _, alpha, _ = box_sphere_boundaries_intersections(z, p, lb, ub,
+                                                      trust_radius)
 
-    x2 = z + alpha*d
+    x2 = z + alpha*p
 
     # Return the best solution among x1 and x2
     if np.linalg.norm(A.dot(x1) + b) < np.linalg.norm(A.dot(x2) + b):
@@ -397,7 +489,7 @@ def projections(A, method=None, orth_tol=1e-12, max_refin=3):
         to the vector. It can be shown that this vector
         ``pinv(A.T) x`` is the least_square solution to
         ``A.T y = x``.
-    Y : LinearOperator, shape (m, m)
+    Y : LinearOperator, shape (n, m)
         Row-space operator. For a given vector ``x``,
         the row-space operator is equivalent to apply a
         projection matrix ``Q = A.T inv(A A.T)``
@@ -743,9 +835,9 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
             else:
                 # Find positive value of alpha such:
                 # ||x + alpha p|| == trust_radius.
-                _, alpha, _ = sphere_boundaries_intersections(x, p,
+                _, alpha, _ = spherical_boundaries_intersections(x, p,
                                                                    trust_radius,
-                                                                   entire_line=True)
+                                                                   line_intersections=True)
 
                 x = x + alpha*p
                 hits_boundary = True
@@ -765,7 +857,7 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
         if np.linalg.norm(x_next) >= trust_radius:
             # Find positive value of alpha such:
             # ||x + alpha p|| == trust_radius.
-            _, alpha, _ = sphere_boundaries_intersections(x, p,
+            _, alpha, _ = spherical_boundaries_intersections(x, p,
                                                              trust_radius)
 
             x = x + alpha*p
