@@ -793,10 +793,9 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
             - niter : Number of iteractions.
             - stop_cond : Reason for algorithm termination:
                 1. Iteration limit was reached;
-                2. Reached trust-region spherical bound;
+                2. Reached trust-region boundarie;
                 3. Negative curvature detected;
-                4. Tolerance was satisfied;
-                5. Reached retangular box constraints.
+                4. Tolerance was satisfied.
             - allvecs : List containing all intermediary vectors (optional).
 
     Notes
@@ -901,21 +900,8 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
 
                 if intersect:
                     x = x + alpha*p
-                    stop_cond = 3
-                    # Store ``x``
-                    if return_all:
-                        allvecs.append(x)
-                else:
-                    x = last_feasible_x
-                    stop_cond = 5
-                    k -= counter + 1
-                    # Remove stored ``x``
-                    if return_all:
-                        del allvecs[-counter-1:]
-                        allvecs.append(x)
-
+                stop_cond = 3
                 hits_boundary = True
-
                 break
 
         # Get next step
@@ -925,30 +911,13 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
         # Stop criteria - Hits boundary
         if np.linalg.norm(x_next) >= trust_radius:
             # Find intersection with box constraints
-            _, theta, intersect, sphere, box = box_sphere_boundaries_intersections(x, alpha*p, lb, ub,
-                                                                                   trust_radius,
-                                                                                   extra_info=True)
+            _, theta, intersect = box_sphere_boundaries_intersections(x, alpha*p, lb, ub,
+                                                                      trust_radius)
 
             if intersect:
                 x = x + theta*alpha*p
-                if box["intersect"] and box["tb"] < sphere["tb"]:
-                    stop_cond = 5
-                else:
-                    stop_cond = 2
-                # Store ``x``
-                if return_all:
-                    allvecs.append(x)
-            else:
-                x = last_feasible_x
-                stop_cond = 5
-                k -= counter+1
-                # Remove stored ``x``
-                if return_all:
-                    del allvecs[-counter-1:]
-                    allvecs.append(x)
-
+            stop_cond = 2
             hits_boundary = True
-
             break
 
         # Check if ``x`` is inside box contraints
@@ -969,13 +938,7 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
 
         # Stop after too many infeasible (regarding box constraints) iteration
         if counter > max_infeasible_iter:
-            x = last_feasible_x
-            stop_cond = 5
-            hits_boundary = True
-            # Remove stored ``x``
-            if return_all:
-                del allvecs[-counter:]
-                allvecs.append(x)
+            break
 
         # Store ``x_next`` value
         if return_all:
@@ -1001,17 +964,10 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
 
     if not inside_box_boundaries(x, lb, ub):
         x = last_feasible_x
-        stop_cond = 5
         hits_boundary = True
-        k = k - counter + 1
-        # Remove stored ``x``
-        if return_all:
-            del allvecs[-counter:]
-            allvecs.append(x)
 
     info = {'niter': k, 'stop_cond': stop_cond}
     if return_all:
         info['allvecs'] = allvecs
 
     return x, hits_boundary, info
-
