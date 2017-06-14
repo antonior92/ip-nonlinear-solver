@@ -88,7 +88,7 @@ def spherical_boundaries_intersections(z, d, trust_radius,
         Direction.
     trust_radius : float
         Ball radius.
-    line_intersections : bool
+    line_intersections : bool, optional
         When ``True`` the function returns the intersection between the line
         ``x(t) = z + t*d`` (``t`` can assume any value) and the ball
         ``||x|| <= trust_radius``. When ``False`` returns the intersection
@@ -168,7 +168,7 @@ def box_boundaries_intersections(z, d, lb, ub,
     ub : array_like, shape (n, )
         Upper bounds to each one of the components of ``x``. Used
         to delimit the retangular box.
-    line_intersections : bool
+    line_intersections : bool, optional
         When ``True`` the function returns the intersection between the line
         ``x(t) = z + t*d`` (``t`` can assume any value) and the retangular box.
         When ``False`` returns the intersection between the segment
@@ -260,12 +260,12 @@ def box_sphere_boundaries_intersections(z, d, lb, ub, trust_radius,
         to delimit the retangular box.
     trust_radius : float
         Ball radius.
-    line_intersections : bool
+    line_intersections : bool, optional
         When ``True`` the function returns the intersection between the line
         ``x(t) = z + t*d`` (``t`` can assume any value) and the constraints.
         When ``False`` returns the intersection between the segment
         ``x(t) = z + t*d``, ``0 <= t <= 1`` and the constraints.
-    extra_info : bool
+    extra_info : bool, optional
         When ``True`` returns ``intersect_sphere`` and ``intersect_box``.
 
     Returns
@@ -463,7 +463,7 @@ def projections(A, method=None, orth_tol=1e-12, max_refin=3):
     ----------
     A : sparse matrix (or ndarray), shape (m, n)
         Matrix ``A`` used in the projection.
-    method : string
+    method : string, optional
         Method used for compute the given linear
         operators. Should be one of:
 
@@ -483,9 +483,9 @@ def projections(A, method=None, orth_tol=1e-12, max_refin=3):
                using QR factorization. Exclusive for
                dense matrices.
 
-    orth_tol : float
+    orth_tol : float, optional
         Tolerance for iterative refinements.
-    max_refin : int
+    max_refin : int, optional
         Maximum number of iterative refinements
 
     Returns
@@ -723,13 +723,14 @@ def projections(A, method=None, orth_tol=1e-12, max_refin=3):
 
 def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
                  lb=None, ub=None, tol=None,
-                 max_infeasible_iter=None,
-                 return_all=False, max_iter=None):
+                 max_iter=None, max_infeasible_iter=None,
+                 return_all=False):
     """Solve EQP problem with projected CG method.
 
     Solve equality-constrained quadratic programming problem
     ``min 1/2 x.T H x + x.t c``  subject to ``A x = b`` and,
-    possibly, to trust region constraints ``||x|| < trust_radius``.
+    possibly, to trust region constraints ``||x|| < trust_radius``
+    and box constraints ``lb <= x <= ub``.
 
     Parameters
     ----------
@@ -744,27 +745,27 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
         norm solution of ``A x = b``.
     b : array_like, shape (m,)
         Right-hand side of the constraint equation.
-    trust_radius : float
+    trust_radius : float, optional
         Trust radius to be considered. By default uses ``trust_radius=inf``,
         which means no trust radius at all.
-    lb : array_like, shape (n,)
+    lb : array_like, shape (n,), optional
         Lower bounds to each one of the components of ``x``.
         If ``lb[i] = -Inf`` the lower bound for the i-th
         component is just ignored (default).
-    ub : array_like, shape (n, )
+    ub : array_like, shape (n, ), optional
         Upper bounds to each one of the components of ``x``.
         If ``ub[i] = Inf`` the upper bound for the i-th
         component is just ignored (default).
-    tol : float
+    tol : float, optional
         Tolerance used to interrupt the algorithm.
-    max_inter : int
+    max_inter : int, optional
         Maximum algorithm iteractions. Where ``max_inter <= n-m``.
         By default uses ``max_iter = n-m``.
-    max_infeasible_iter : int
+    max_infeasible_iter : int, optional
         Maximum infeasible (regarding box constraints) iterations the
         algorithm is allowed to take.
         By default uses ``max_infeasible_iter = n-m``.
-    return_all : bool
+    return_all : bool, optional
         When ``true`` return the list of all vectors through the iterations.
 
     Returns
@@ -788,6 +789,11 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
     Notes
     -----
     Implementation of Algorithm 6.2 on [1]_.
+
+    In the abscence of sperical and box constraints, for sufficient
+    iteractions, the method returns a truly optimal result.
+    In the presence of those constraints the value returned is only
+    a inexpensive approximation of the optimal value.
 
     References
     ----------
@@ -929,7 +935,8 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
 
             break
 
-        # Check if is inside box contraints (and start counter if it is not)
+        # Check if ``x`` is inside box contraints
+        # and start counter if it is not
         if inside_box_boundaries(x_next, lb, ub):
             counter = 0
         else:
