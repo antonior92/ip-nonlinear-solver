@@ -104,6 +104,17 @@ def spherical_boundaries_intersections(z, d, trust_radius,
         and the sphere. On the other hand, when ``False``, there is no
         intersection.
     """
+
+    if np.isinf(trust_radius):
+        if line_intersections:
+            ta = -np.inf
+            tb = np.inf
+        else:
+            ta = 0
+            tb = 1
+        intersect = True
+        return ta, tb, intersect
+
     a = np.dot(d, d)
     b = 2 * np.dot(z, d)
     c = np.dot(z, z) - trust_radius**2
@@ -277,14 +288,14 @@ def box_sphere_boundaries_intersections(z, d, lb, ub, trust_radius,
         When ``True`` there is a intersection between the line (or segment)
         and both constraints. On the other hand, when ``False``, there is no
         intersection.
-    intersect_sphere : bool, optional
-        When ``True`` there is a intersection between the line (or segment)
-        and the sphere. On the other hand, when ``False``, there is no
-        intersection.
-    intersect_box : bool, optional
-        When ``True`` there is a intersection between the line (or segment)
-        and the retangular box. On the other hand, when ``False``, there is no
-        intersection.
+    sphere_info : dictionary, optional
+        Dictionary ``{ta, tb, intersect}`` containing the interval ``[ta, tb]``
+        for which the line intercept the ball. And a boolean value expliciting
+        if it intercepts it or not.
+    box_info : Dictionary, optional
+        Dictionary ``{ta, tb, intersect}`` containing the interval ``[ta, tb]``
+        for which the line intercept the box. And a boolean value expliciting
+        if it intercepts it or not.
     """
 
     ta_b, tb_b, intersect_b = box_boundaries_intersections(z, d, lb, ub,
@@ -302,7 +313,9 @@ def box_sphere_boundaries_intersections(z, d, lb, ub, trust_radius,
         intersect = False
 
     if extra_info:
-        return ta, tb, intersect, intersect_s, intersect_b
+        sphere_info = {'ta': ta_s, 'tb': tb_s, 'intersect': intersect_s}
+        box_info = {'ta': ta_b, 'tb': tb_b, 'intersect': intersect_b}
+        return ta, tb, intersect, sphere_info, box_info
     else:
         return ta, tb, intersect
 
@@ -889,15 +902,17 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
                 if intersect:
                     x = x + alpha*p
                     stop_cond = 3
-                    # Store ``x`` value
+                    # Store ``x``
                     if return_all:
                         allvecs.append(x)
                 else:
                     x = last_feasible_x
                     stop_cond = 5
+                    k -= counter + 1
                     # Remove stored ``x``
                     if return_all:
-                        del allvecs[-counter:]
+                        del allvecs[-counter-1:]
+                        allvecs.append(x)
 
                 hits_boundary = True
 
@@ -909,27 +924,28 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
 
         # Stop criteria - Hits boundary
         if np.linalg.norm(x_next) >= trust_radius:
-            # Find positive value of alpha such:
-            # ||x + alpha p|| == trust_radius.
-            _, alpha, intersect, intersect_sphere, _ = box_sphere_boundaries_intersections(x, p, lb, ub,
-                                                                                           trust_radius,
-                                                                                           extra_info=True)
+            # Find intersection with box constraints
+            _, theta, intersect, sphere, box = box_sphere_boundaries_intersections(x, alpha*p, lb, ub,
+                                                                                   trust_radius,
+                                                                                   extra_info=True)
 
             if intersect:
-                x = x + alpha*p
-                if intersect_sphere:
-                    stop_cond = 2
-                else:
+                x = x + theta*alpha*p
+                if box["intersect"] and box["tb"] < sphere["tb"]:
                     stop_cond = 5
-                # Store ``x`` value
+                else:
+                    stop_cond = 2
+                # Store ``x``
                 if return_all:
                     allvecs.append(x)
             else:
                 x = last_feasible_x
                 stop_cond = 5
+                k -= counter+1
                 # Remove stored ``x``
                 if return_all:
-                    del allvecs[-counter:]
+                    del allvecs[-counter-1:]
+                    allvecs.append(x)
 
             hits_boundary = True
 
@@ -944,11 +960,11 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
 
         # Whenever outside box constraints keep looking for intersections
         if counter > 0:
-            _, alpha, intersect = box_sphere_boundaries_intersections(x, p, lb, ub,
+            _, theta, intersect = box_sphere_boundaries_intersections(x, alpha*p, lb, ub,
                                                                       trust_radius)
 
             if intersect:
-                last_feasible_x = x + alpha*p
+                last_feasible_x = x + theta*alpha*p
                 counter = 0
 
         # Stop after too many infeasible (regarding box constraints) iteration
@@ -959,6 +975,7 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
             # Remove stored ``x``
             if return_all:
                 del allvecs[-counter:]
+                allvecs.append(x)
 
         # Store ``x_next`` value
         if return_all:
@@ -982,9 +999,19 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
         rt_g = r.dot(g)
         H_p = H.dot(p)
 
+    if not inside_box_boundaries(x, lb, ub):
+        x = last_feasible_x
+        stop_cond = 5
+        hits_boundary = True
+        k = k - counter + 1
+        # Remove stored ``x``
+        if return_all:
+            del allvecs[-counter:]
+            allvecs.append(x)
+
     info = {'niter': k, 'stop_cond': stop_cond}
     if return_all:
-        allvecs.append(x)
         info['allvecs'] = allvecs
 
     return x, hits_boundary, info
+

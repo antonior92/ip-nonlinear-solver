@@ -774,3 +774,111 @@ class TestProjectCG(TestCase):
         assert_equal(info["stop_cond"], 3)
         assert_equal(hits_boundary, True)
         assert_array_almost_equal(np.linalg.norm(x), trust_radius)
+
+    # The box contraints are inactive at the solution but
+    # are active during the iterations
+    def test_inactive_box_constraints(self):
+
+        H = csc_matrix([[6, 2, 1, 3],
+                        [2, 5, 2, 4],
+                        [1, 2, 4, 5],
+                        [3, 4, 5, 7]])
+        A = csc_matrix([[1, 0, 1, 0],
+                        [0, 1, 1, 1]])
+        c = np.array([-2, -3, -3, 1])
+        b = np.array([3, 0])
+
+        Z, _, Y = projections(A)
+
+        x, hits_boundary, info = projected_cg(H, c, Z, Y, b,
+                                              tol=0,
+                                              lb=[0.5, -np.inf,
+                                                  -np.inf, -np.inf],
+                                              return_all=True)
+        x_kkt, _ = eqp_kktfact(H, c, A, b)
+
+        assert_equal(info["stop_cond"], 1)
+        assert_equal(hits_boundary, False)
+        assert_array_almost_equal(x, x_kkt)
+
+    # The box contraints active and the termination is
+    # by maximum iterations
+    def test_active_box_constraints_maximum_iterations_reached(self):
+
+        H = csc_matrix([[6, 2, 1, 3],
+                        [2, 5, 2, 4],
+                        [1, 2, 4, 5],
+                        [3, 4, 5, 7]])
+        A = csc_matrix([[1, 0, 1, 0],
+                        [0, 1, 1, 1]])
+        c = np.array([-2, -3, -3, 1])
+        b = np.array([3, 0])
+
+        Z, _, Y = projections(A)
+
+        x, hits_boundary, info = projected_cg(H, c, Z, Y, b,
+                                              tol=0,
+                                              lb=[0.8, -np.inf,
+                                                  -np.inf, -np.inf],
+                                              return_all=True)
+
+        assert_equal(info["stop_cond"], 5)
+        assert_equal(hits_boundary, True)
+        assert_array_almost_equal(A.dot(x), b)
+        assert_array_almost_equal(x[0], 0.8)
+
+    # The box contraints are active and the termination is
+    # because of it hits boundary (without infeasible iteraction)
+    def test_active_box_constraints_hits_boundaries(self):
+
+        H = csc_matrix([[6, 2, 1, 3],
+                        [2, 5, 2, 4],
+                        [1, 2, 4, 5],
+                        [3, 4, 5, 7]])
+        A = csc_matrix([[1, 0, 1, 0],
+                        [0, 1, 1, 1]])
+        c = np.array([-2, -3, -3, 1])
+        b = np.array([3, 0])
+
+        trust_radius = 3
+
+        Z, _, Y = projections(A)
+
+        x, hits_boundary, info = projected_cg(H, c, Z, Y, b,
+                                              tol=0,
+                                              ub=[np.inf, np.inf, 1.6, np.inf],
+                                              trust_radius=trust_radius,
+                                              return_all=True)
+
+        assert_equal(info["stop_cond"], 5)
+        assert_equal(hits_boundary, True)
+        assert_array_almost_equal(x[2], 1.6)
+
+
+    # The box contraints are active and the termination is
+    # because of it hits boundary (infeasible iteraction)
+    def test_active_box_constraints_hits_boundaries_infeasible(self):
+
+        H = csc_matrix([[6, 2, 1, 3],
+                        [2, 5, 2, 4],
+                        [1, 2, 4, 5],
+                        [3, 4, 5, 7]])
+        A = csc_matrix([[1, 0, 1, 0],
+                        [0, 1, 1, 1]])
+        c = np.array([-2, -3, -3, 1])
+        b = np.array([3, 0])
+
+        trust_radius = 4
+
+        Z, _, Y = projections(A)
+
+        x, hits_boundary, info = projected_cg(H, c, Z, Y, b,
+                                              tol=0,
+                                              ub=[np.inf, 0.1, np.inf, np.inf],
+                                              trust_radius=trust_radius,
+                                              return_all=True)
+
+        assert_equal(info["stop_cond"], 5)
+        assert_equal(hits_boundary, True)
+        assert_array_almost_equal(x[1], 0.1)
+
