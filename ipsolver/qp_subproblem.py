@@ -238,7 +238,8 @@ def box_boundaries_intersections(z, d, lb, ub,
 
 
 def box_sphere_boundaries_intersections(z, d, lb, ub, trust_radius,
-                                        line_intersections=False):
+                                        line_intersections=False,
+                                        extra_info=False):
     """Find the intersection between segment (or line) and box/sphere constraints.
 
     Find the intersection between the segment (or line) defined by the
@@ -264,6 +265,8 @@ def box_sphere_boundaries_intersections(z, d, lb, ub, trust_radius,
         ``x(t) = z + t*d`` (``t`` can assume any value) and the constraints.
         When ``False`` returns the intersection between the segment
         ``x(t) = z + t*d``, ``0 <= t <= 1`` and the constraints.
+    extra_info : bool
+        When ``True`` returns ``intersect_sphere`` and ``intersect_box``.
 
     Returns
     -------
@@ -272,7 +275,15 @@ def box_sphere_boundaries_intersections(z, d, lb, ub, trust_radius,
         inside the ball for for ``ta <= t <= tb``.
     intersect : bool
         When ``True`` there is a intersection between the line (or segment)
-        and the constraints. On the other hand, when ``False``, there is no
+        and both constraints. On the other hand, when ``False``, there is no
+        intersection.
+    intersect_sphere : bool, optional
+        When ``True`` there is a intersection between the line (or segment)
+        and the sphere. On the other hand, when ``False``, there is no
+        intersection.
+    intersect_box : bool, optional
+        When ``True`` there is a intersection between the line (or segment)
+        and the retangular box. On the other hand, when ``False``, there is no
         intersection.
     """
 
@@ -290,7 +301,10 @@ def box_sphere_boundaries_intersections(z, d, lb, ub, trust_radius,
     else:
         intersect = False
 
-    return ta, tb, intersect
+    if extra_info:
+        return ta, tb, intersect, intersect_s, intersect_b
+    else:
+        return ta, tb, intersect
 
 
 def inside_box_boundaries(x, lb, ub):
@@ -708,7 +722,9 @@ def projections(A, method=None, orth_tol=1e-12, max_refin=3):
 
 
 def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
-                 tol=None, return_all=False, max_iter=None):
+                 lb=None, ub=None, tol=None,
+                 max_infeasible_iter=None,
+                 return_all=False, max_iter=None):
     """Solve EQP problem with projected CG method.
 
     Solve equality-constrained quadratic programming problem
@@ -731,11 +747,23 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
     trust_radius : float
         Trust radius to be considered. By default uses ``trust_radius=inf``,
         which means no trust radius at all.
+    lb : array_like, shape (n,)
+        Lower bounds to each one of the components of ``x``.
+        If ``lb[i] = -Inf`` the lower bound for the i-th
+        component is just ignored (default).
+    ub : array_like, shape (n, )
+        Upper bounds to each one of the components of ``x``.
+        If ``ub[i] = Inf`` the upper bound for the i-th
+        component is just ignored (default).
     tol : float
         Tolerance used to interrupt the algorithm.
     max_inter : int
         Maximum algorithm iteractions. Where ``max_inter <= n-m``.
         By default uses ``max_iter = n-m``.
+    max_infeasible_iter : int
+        Maximum infeasible (regarding box constraints) iterations the
+        algorithm is allowed to take.
+        By default uses ``max_infeasible_iter = n-m``.
     return_all : bool
         When ``true`` return the list of all vectors through the iterations.
 
@@ -751,9 +779,10 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
             - niter : Number of iteractions.
             - stop_cond : Reason for algorithm termination:
                 1. Iteration limit was reached;
-                2. Termination from trust-region bound;
+                2. Reached trust-region spherical bound;
                 3. Negative curvature detected;
-                4. tolerance was satisfied.
+                4. Tolerance was satisfied;
+                5. Reached retangular box constraints.
             - allvecs : List containing all intermediary vectors (optional).
 
     Notes
@@ -806,13 +835,25 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
     if tol is None:
         tol = max(0.01 * np.sqrt(rt_g), 1e-20)
 
+    # Set default lower and upper bounds
+    if lb is None:
+        lb = np.full(n, -np.inf)
+    if ub is None:
+        ub = np.full(n, np.inf)
+
     # Set maximum iteractions
     if max_iter is None:
         max_iter = n-m
     max_iter = min(max_iter, n-m)
 
+    # Set maximum infeasible iteractions
+    if max_infeasible_iter is None:
+        max_infeasible_iter = n-m
+
     hits_boundary = False
     stop_cond = 1
+    counter = 0
+    last_feasible_x = np.empty_like(x)
 
     k = 0
     for i in range(max_iter):
@@ -834,19 +875,25 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
                                      "allowed for unrestrited "
                                      "problems.")
             else:
-                # Find positive value of alpha such:
-                # ||x + alpha p|| == trust_radius.
-                _, alpha, _ = spherical_boundaries_intersections(x, p,
-                                                                   trust_radius,
-                                                                   line_intersections=True)
+                # Find intersection with constraints
+                _, alpha, intersect = box_sphere_boundaries_intersections(x, p, lb, ub,
+                                                                          trust_radius,
+                                                                          line_intersections=True)
 
-                x = x + alpha*p
+                if intersect:
+                    x = x + alpha*p
+                    stop_cond = 3
+                    # Store ``x`` value
+                    if return_all:
+                        allvecs.append(x)
+                else:
+                    x = last_feasible_x
+                    stop_cond = 5
+                    # Remove stored ``x``
+                    if return_all:
+                        del allvecs[-counter:]
+
                 hits_boundary = True
-                stop_cond = 3
-
-                # Store ``x`` value
-                if return_all:
-                    allvecs.append(x)
 
                 break
 
@@ -858,14 +905,53 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
         if np.linalg.norm(x_next) >= trust_radius:
             # Find positive value of alpha such:
             # ||x + alpha p|| == trust_radius.
-            _, alpha, _ = spherical_boundaries_intersections(x, p,
-                                                             trust_radius)
+            _, alpha, intersect, intersect_sphere, _ = box_sphere_boundaries_intersections(x, p, lb, ub,
+                                                                                           trust_radius,
+                                                                                           extra_info=True)
 
-            x = x + alpha*p
+            if intersect:
+                x = x + alpha*p
+                if intersect_sphere:
+                    stop_cond = 2
+                else:
+                    stop_cond = 5
+                # Store ``x`` value
+                if return_all:
+                    allvecs.append(x)
+            else:
+                x = last_feasible_x
+                stop_cond = 5
+                # Remove stored ``x``
+                if return_all:
+                    del allvecs[-counter:]
+
             hits_boundary = True
-            stop_cond = 2
 
             break
+
+        # Check if is inside box contraints (and start counter if it is not)
+        if inside_box_boundaries(x_next, lb, ub):
+            counter = 0
+        else:
+            counter += 1
+
+        # Whenever outside box constraints keep looking for intersections
+        if counter > 0:
+            _, alpha, intersect = box_sphere_boundaries_intersections(x, p, lb, ub,
+                                                                      trust_radius)
+
+            if intersect:
+                last_feasible_x = x + alpha*p
+                counter = 0
+
+        # Stop after too many infeasible (regarding box constraints) iteration
+        if counter > max_infeasible_iter:
+            x = last_feasible_x
+            stop_cond = 5
+            hits_boundary = True
+            # Remove stored ``x``
+            if return_all:
+                del allvecs[-counter:]
 
         # Store ``x_next`` value
         if return_all:
