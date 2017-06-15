@@ -24,7 +24,7 @@ class TestEQPDirectFactorization(TestCase):
         A = csc_matrix([[1, 0, 1],
                         [0, 1, 1]])
         c = np.array([-8, -3, -3])
-        b = np.array([3, 0])
+        b = -np.array([3, 0])
 
         x, lagrange_multipliers = eqp_kktfact(H, c, A, b)
 
@@ -642,7 +642,7 @@ class TestProjectCG(TestCase):
         A = csc_matrix([[1, 0, 1],
                         [0, 1, 1]])
         c = np.array([-8, -3, -3])
-        b = np.array([3, 0])
+        b = -np.array([3, 0])
 
         Z, _, Y = projections(A)
 
@@ -661,7 +661,7 @@ class TestProjectCG(TestCase):
         A = csc_matrix([[1, 0, 1, 0],
                         [0, 1, 1, 1]])
         c = np.array([-2, -3, -3, 1])
-        b = np.array([3, 0])
+        b = -np.array([3, 0])
 
         Z, _, Y = projections(A)
 
@@ -681,7 +681,7 @@ class TestProjectCG(TestCase):
         A = csc_matrix([[1, 0, 1, 0],
                         [0, 1, 1, 1]])
         c = np.array([-2, -3, -3, 1])
-        b = np.array([3, 0])
+        b = -np.array([3, 0])
 
         trust_radius = 1
 
@@ -699,7 +699,7 @@ class TestProjectCG(TestCase):
         A = csc_matrix([[1, 0, 1, 0],
                         [0, 1, 1, 1]])
         c = np.array([-2, -3, -3, 1])
-        b = np.array([3, 0])
+        b = -np.array([3, 0])
 
         trust_radius = 2.32379000772445021283
 
@@ -712,7 +712,7 @@ class TestProjectCG(TestCase):
         assert_equal(info["stop_cond"], 2)
         assert_equal(hits_boundary, True)
         assert_array_almost_equal(np.linalg.norm(x), trust_radius)
-        assert_array_almost_equal(x, Y.dot(b))
+        assert_array_almost_equal(x, -Y.dot(b))
 
     def test_hits_boundary(self):
 
@@ -723,7 +723,7 @@ class TestProjectCG(TestCase):
         A = csc_matrix([[1, 0, 1, 0],
                         [0, 1, 1, 1]])
         c = np.array([-2, -3, -3, 1])
-        b = np.array([3, 0])
+        b = -np.array([3, 0])
 
         trust_radius = 3
 
@@ -746,7 +746,7 @@ class TestProjectCG(TestCase):
         A = csc_matrix([[1, 0, 1, 0],
                         [0, 1, 0, 1]])
         c = np.array([-2, -3, -3, 1])
-        b = np.array([3, 0])
+        b = -np.array([3, 0])
 
         Z, _, Y = projections(A)
 
@@ -761,7 +761,7 @@ class TestProjectCG(TestCase):
         A = csc_matrix([[1, 0, 1, 0],
                         [0, 1, 0, 1]])
         c = np.array([-2, -3, -3, 1])
-        b = np.array([3, 0])
+        b = -np.array([3, 0])
 
         Z, _, Y = projections(A)
 
@@ -786,7 +786,7 @@ class TestProjectCG(TestCase):
         A = csc_matrix([[1, 0, 1, 0],
                         [0, 1, 1, 1]])
         c = np.array([-2, -3, -3, 1])
-        b = np.array([3, 0])
+        b = -np.array([3, 0])
 
         Z, _, Y = projections(A)
 
@@ -812,7 +812,7 @@ class TestProjectCG(TestCase):
         A = csc_matrix([[1, 0, 1, 0],
                         [0, 1, 1, 1]])
         c = np.array([-2, -3, -3, 1])
-        b = np.array([3, 0])
+        b = -np.array([3, 0])
 
         Z, _, Y = projections(A)
 
@@ -824,7 +824,7 @@ class TestProjectCG(TestCase):
 
         assert_equal(info["stop_cond"], 1)
         assert_equal(hits_boundary, True)
-        assert_array_almost_equal(A.dot(x), b)
+        assert_array_almost_equal(A.dot(x), -b)
         assert_array_almost_equal(x[0], 0.8)
 
     # The box contraints are active and the termination is
@@ -838,7 +838,7 @@ class TestProjectCG(TestCase):
         A = csc_matrix([[1, 0, 1, 0],
                         [0, 1, 1, 1]])
         c = np.array([-2, -3, -3, 1])
-        b = np.array([3, 0])
+        b = -np.array([3, 0])
 
         trust_radius = 3
 
@@ -865,7 +865,7 @@ class TestProjectCG(TestCase):
         A = csc_matrix([[1, 0, 1, 0],
                         [0, 1, 1, 1]])
         c = np.array([-2, -3, -3, 1])
-        b = np.array([3, 0])
+        b = -np.array([3, 0])
 
         trust_radius = 4
 
@@ -892,7 +892,7 @@ class TestProjectCG(TestCase):
         A = csc_matrix([[1, 0, 1, 0],
                         [0, 1, 0, 1]])
         c = np.array([-2, -3, -3, 1])
-        b = np.array([3, 0])
+        b = -np.array([3, 0])
 
         Z, _, Y = projections(A)
 

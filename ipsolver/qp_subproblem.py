@@ -27,7 +27,7 @@ __all__ = [
 def eqp_kktfact(H, c, A, b):
     """Solve equality-constrained quadratic programming (EQP) problem.
 
-    Solve ``min 1/2 x.T H x + x.t c``  subject to ``A x = b``
+    Solve ``min 1/2 x.T H x + x.t c``  subject to ``A x + b = 0``
     using direct factorization of the KKT system.
 
     Parameters
@@ -58,7 +58,7 @@ def eqp_kktfact(H, c, A, b):
     kkt_matrix = csc_matrix(bmat([[H, A.T], [A, None]]))
 
     # Vector of coeficients.
-    kkt_vec = np.hstack([-c, b])
+    kkt_vec = np.hstack([-c, -b])
 
     # TODO: Use a symmetric indefinite factorization
     #       to solve the system twice as fast (because
@@ -741,7 +741,7 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
     """Solve EQP problem with projected CG method.
 
     Solve equality-constrained quadratic programming problem
-    ``min 1/2 x.T H x + x.t c``  subject to ``A x = b`` and,
+    ``min 1/2 x.T H x + x.t c``  subject to ``A x + b = 0`` and,
     possibly, to trust region constraints ``||x|| < trust_radius``
     and box constraints ``lb <= x <= ub``.
 
@@ -755,7 +755,7 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
         Operator for projecting ``x`` into the null space of A.
     Y : LinearOperator,  sparse matrix, ndarray, shape (n, m)
         Operator that, for a given a vector ``b``, compute smallest
-        norm solution of ``A x = b``.
+        norm solution of ``A x + b = 0``.
     b : array_like, shape (m,)
         Right-hand side of the constraint equation.
     trust_radius : float, optional
@@ -819,7 +819,7 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
     m, = np.shape(b)  # Number of constraints
 
     # Initial Values
-    x = Y.dot(b)
+    x = Y.dot(-b)
     r = Z.dot(H.dot(x) + c)
     g = Z.dot(r)
     p = -g
