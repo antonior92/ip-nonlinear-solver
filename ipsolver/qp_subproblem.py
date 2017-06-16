@@ -13,8 +13,10 @@ __all__ = [
     'spherical_boundaries_intersections',
     'box_boundaries_intersections',
     'box_sphere_boundaries_intersections',
+    'inside_box_boundaries',
     'modified_dogleg',
-    'projected_cg'
+    'projected_cg',
+    'qp_subproblem'
 ]
 
 
@@ -620,7 +622,7 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
 
 def qp_subproblem(H, c, A, Z, Y, b, trust_radius,
                   lb=None, ub=None, tr_factor=0.8,
-                  box_factor=0.5, cg_parameters=None):
+                  box_factor=0.5, cg_parameters={}):
     """Solve (approximately) trust-region EQP problem using projected CG.
 
     Solve problem:
@@ -734,14 +736,13 @@ def qp_subproblem(H, c, A, Z, Y, b, trust_radius,
     # (x_t -> tangencial step, x_n -> normal step).
     c_t = H.dot(x_n) + c
     b_t = np.zeros(m)
-    trust_radius_t = trust_radius - np.linalg.norm(x_n)
+    trust_radius_t = np.sqrt(trust_radius**2 - np.linalg.norm(x_n)**2)
     lb_t = lb - x_n
     ub_t = ub - x_n
     x_t, hits_boundary, info_cg = projected_cg(H, c_t, Z, Y, b_t,
                                                trust_radius_t,
                                                lb_t, ub_t,
                                                **cg_parameters)
-
     # tangencial + normal steps
     x = x_n + x_t
 
