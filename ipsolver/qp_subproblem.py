@@ -140,7 +140,7 @@ def spherical_boundaries_intersections(z, d, trust_radius,
         else:
             intersect = True
             # Restrict intersection interval
-            # between 0 and 1
+            # between 0 and 1.
             ta = max(0, ta)
             tb = min(1, tb)
 
@@ -192,7 +192,7 @@ def box_boundaries_intersections(z, d, lb, ub,
     # Get values for which d==0
     zero_d = (d == 0)
     # If the boundaries are not satisfied for some coordinate
-    # for which "d" is zero, there is no box-line intersection
+    # for which "d" is zero, there is no box-line intersection.
     if (z[zero_d] < lb[zero_d]).any() or (z[zero_d] > ub[zero_d]).any():
         intersect = False
         return 0, 0, intersect
@@ -203,10 +203,10 @@ def box_boundaries_intersections(z, d, lb, ub,
     lb = lb[not_zero_d]
     ub = ub[not_zero_d]
 
-    # Find a series of intervals (t_lb[i], t_ub[i])
+    # Find a series of intervals (t_lb[i], t_ub[i]).
     t_lb = (lb-z) / d
     t_ub = (ub-z) / d
-    # Get the intersection of all those intervals
+    # Get the intersection of all those intervals.
     ta = max(np.minimum(t_lb, t_ub))
     tb = min(np.maximum(t_lb, t_ub))
 
@@ -224,7 +224,7 @@ def box_boundaries_intersections(z, d, lb, ub,
             tb = 0
         else:
             # Restrict intersection interval
-            # between 0 and 1
+            # between 0 and 1.
             ta = max(0, ta)
             tb = min(1, tb)
 
@@ -352,7 +352,7 @@ def modified_dogleg(A, Y, b, trust_radius, lb, ub):
            "An interior point algorithm for large-scale nonlinear
            programming." SIAM Journal on Optimization 9.4 (1999): 877-900.
     """
-    # Compute minimum norm minimizer of 1/2*|| A x + b ||^2
+    # Compute minimum norm minimizer of 1/2*|| A x + b ||^2.
     newton_point = -Y.dot(b)
     # Check for interior point
     if inside_box_boundaries(newton_point, lb, ub)  \
@@ -363,14 +363,14 @@ def modified_dogleg(A, Y, b, trust_radius, lb, ub):
     # Compute gradient vector ``g = A.T b``
     g = A.T.dot(b)
     # Compute cauchy point
-    # `cauchy_point = g.T g / (g.T A.T A g)``
+    # `cauchy_point = g.T g / (g.T A.T A g)``.
     A_g = A.dot(g)
     cauchy_point = -np.dot(g, g) / np.dot(A_g, A_g) * g
     # Origin
     origin_point = np.zeros_like(cauchy_point)
 
     # Check the segment between cauchy_point and newton_point
-    # for a possible solution
+    # for a possible solution.
     z = cauchy_point
     p = newton_point - cauchy_point
     _, alpha, intersect = box_sphere_boundaries_intersections(z, p, lb, ub,
@@ -379,7 +379,7 @@ def modified_dogleg(A, Y, b, trust_radius, lb, ub):
         x1 = z + alpha*p
     else:
         # Check the segment between the origin and cauchy_point
-        # for a possible solution
+        # for a possible solution.
         z = origin_point
         p = cauchy_point
         _, alpha, _ = box_sphere_boundaries_intersections(z, p, lb, ub,
@@ -387,14 +387,14 @@ def modified_dogleg(A, Y, b, trust_radius, lb, ub):
         x1 = z + alpha*p
 
     # Check the segment between origin and newton_point
-    # for a possible solution
+    # for a possible solution.
     z = origin_point
     p = newton_point
     _, alpha, _ = box_sphere_boundaries_intersections(z, p, lb, ub,
                                                       trust_radius)
     x2 = z + alpha*p
 
-    # Return the best solution among x1 and x2
+    # Return the best solution among x1 and x2.
     if np.linalg.norm(A.dot(x1) + b) < np.linalg.norm(A.dot(x2) + b):
         return x1
     else:
@@ -574,19 +574,19 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
             hits_boundary = True
             break
         # Check if ``x`` is inside box contraints
-        # and start counter if it is not
+        # and start counter if it is not.
         if inside_box_boundaries(x_next, lb, ub):
             counter = 0
         else:
             counter += 1
-        # Whenever outside box constraints keep looking for intersections
+        # Whenever outside box constraints keep looking for intersections.
         if counter > 0:
             _, theta, intersect = box_sphere_boundaries_intersections(x, alpha*p, lb, ub,
                                                                       trust_radius)
             if intersect:
                 last_feasible_x = x + theta*alpha*p
                 counter = 0
-        # Stop after too many infeasible (regarding box constraints) iteration
+        # Stop after too many infeasible (regarding box constraints) iteration.
         if counter > max_infeasible_iter:
             break
         # Store ``x_next`` value
@@ -650,6 +650,7 @@ def qp_subproblem(H, c, A, Z, Y, b, trust_radius,
                           tr_factor*trust_radius,
                           box_factor*lb,
                           box_factor*ub)
+    r = A.dot(x)
 
     # *** Tangencial Step ***
     # Solve the problem:

@@ -15,7 +15,7 @@ from numpy.testing import (TestCase, assert_array_almost_equal,
 class TestEQPDirectFactorization(TestCase):
 
     # From Example 16.2 Nocedal/Wright "Numerical
-    # Optimization" p.452
+    # Optimization" p.452.
     def test_nocedal_example(self):
         H = csc_matrix([[6, 2, 1],
                         [2, 5, 2],
@@ -349,10 +349,8 @@ class TestModifiedDogleg(TestCase):
         b = np.array([-16])
         _, _, Y = projections(A)
         newton_point = np.array([0.24615385, 1.96923077])
-        cauchy_point = newton_point
-        origin = np.zeros_like(newton_point)
 
-        # Newton point inside boundaries:
+        # Newton point inside boundaries
         x = modified_dogleg(A, Y, b, 2, [-np.inf, -np.inf], [np.inf, np.inf])
         assert_array_almost_equal(x, newton_point)
 
@@ -374,13 +372,13 @@ class TestModifiedDogleg(TestCase):
         cauchy_point = np.array([0.11165723, 1.73068711, 0.16748585])
         origin = np.zeros_like(newton_point)
 
-        # newton_point inside boundaries:
+        # newton_point inside boundaries
         x = modified_dogleg(A, Y, b, 3, [-np.inf, -np.inf, -np.inf],
                             [np.inf, np.inf, np.inf])
         assert_array_almost_equal(x, newton_point)
 
         # line between cauchy_point and newton_point contains best point
-        # (spherical constrain is active)
+        # (spherical constrain is active).
         x = modified_dogleg(A, Y, b, 2, [-np.inf, -np.inf, -np.inf],
                             [np.inf, np.inf, np.inf])
         z = cauchy_point
@@ -390,7 +388,7 @@ class TestModifiedDogleg(TestCase):
         assert_array_almost_equal(np.linalg.norm(x), 2)
 
         # line between cauchy_point and newton_point contains best point
-        # (box constrain is active)
+        # (box constrain is active).
         x = modified_dogleg(A, Y, b, 5, [-1, -np.inf, -np.inf],
                             [np.inf, np.inf, np.inf])
         z = cauchy_point
@@ -400,7 +398,7 @@ class TestModifiedDogleg(TestCase):
         assert_array_almost_equal(x[0], -1)
 
         # line between origin and cauchy_point contains best point
-        # (spherical constrain is active)
+        # (spherical constrain is active).
         x = modified_dogleg(A, Y, b, 1, [-np.inf, -np.inf, -np.inf],
                             [np.inf, np.inf, np.inf])
         z = origin
@@ -410,7 +408,7 @@ class TestModifiedDogleg(TestCase):
         assert_array_almost_equal(np.linalg.norm(x), 1)
 
         # line between origin and newton_point contains best point
-        # (box constrain is active)
+        # (box constrain is active).
         x = modified_dogleg(A, Y, b, 2, [-np.inf, -np.inf, -np.inf],
                             [np.inf, 1, np.inf])
         z = origin
@@ -423,7 +421,7 @@ class TestModifiedDogleg(TestCase):
 class TestProjectCG(TestCase):
 
     # From Example 16.2 Nocedal/Wright "Numerical
-    # Optimization" p.452
+    # Optimization" p.452.
     def test_nocedal_example(self):
         H = csc_matrix([[6, 2, 1],
                         [2, 5, 2],
@@ -536,7 +534,7 @@ class TestProjectCG(TestCase):
         assert_array_almost_equal(np.linalg.norm(x), trust_radius)
 
     # The box contraints are inactive at the solution but
-    # are active during the iterations
+    # are active during the iterations.
     def test_inactive_box_constraints(self):
         H = csc_matrix([[6, 2, 1, 3],
                         [2, 5, 2, 4],
@@ -558,7 +556,7 @@ class TestProjectCG(TestCase):
         assert_array_almost_equal(x, x_kkt)
 
     # The box contraints active and the termination is
-    # by maximum iterations (infeasible iteraction)
+    # by maximum iterations (infeasible iteraction).
     def test_active_box_constraints_maximum_iterations_reached(self):
         H = csc_matrix([[6, 2, 1, 3],
                         [2, 5, 2, 4],
@@ -580,7 +578,7 @@ class TestProjectCG(TestCase):
         assert_array_almost_equal(x[0], 0.8)
 
     # The box contraints are active and the termination is
-    # because it hits boundary (without infeasible iteraction)
+    # because it hits boundary (without infeasible iteraction).
     def test_active_box_constraints_hits_boundaries(self):
         H = csc_matrix([[6, 2, 1, 3],
                         [2, 5, 2, 4],
@@ -602,7 +600,7 @@ class TestProjectCG(TestCase):
         assert_array_almost_equal(x[2], 1.6)
 
     # The box contraints are active and the termination is
-    # because it hits boundary (infeasible iteraction)
+    # because it hits boundary (infeasible iteraction).
     def test_active_box_constraints_hits_boundaries_infeasible_iter(self):
         H = csc_matrix([[6, 2, 1, 3],
                         [2, 5, 2, 4],
@@ -624,7 +622,7 @@ class TestProjectCG(TestCase):
         assert_array_almost_equal(x[1], 0.1)
 
     # The box contraints are active and the termination is
-    # because it hits boundary (no infeasible iteraction)
+    # because it hits boundary (no infeasible iteraction).
     def test_active_box_constraints_negative_curvature(self):
         H = csc_matrix([[1, 2, 1, 3],
                         [2, 0, 2, 4],
