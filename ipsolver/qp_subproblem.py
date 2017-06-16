@@ -43,7 +43,6 @@ def eqp_kktfact(H, c, A, b):
     lagrange_multipliers : ndarray, shape (m,)
         Lagrange multipliers of the KKT problem.
     """
-
     n, = np.shape(c)  # Number of parameters
     m, = np.shape(b)  # Number of constraints
 
@@ -51,7 +50,6 @@ def eqp_kktfact(H, c, A, b):
     # Defined as in Nocedal/Wright "Numerical
     # Optimization" p.452 in Eq. (16.4).
     kkt_matrix = csc_matrix(bmat([[H, A.T], [A, None]]))
-
     # Vector of coeficients.
     kkt_vec = np.hstack([-c, -b])
 
@@ -60,7 +58,6 @@ def eqp_kktfact(H, c, A, b):
     #       of the symmetry).
     lu = linalg.splu(kkt_matrix)
     kkt_sol = lu.solve(kkt_vec)
-
     x = kkt_sol[:n]
     lagrange_multipliers = -kkt_sol[n:n+m]
 
@@ -99,7 +96,7 @@ def spherical_boundaries_intersections(z, d, trust_radius,
         and the sphere. On the other hand, when ``False``, there is no
         intersection.
     """
-
+    # Check for inf trust_radius
     if np.isinf(trust_radius):
         if line_intersections:
             ta = -np.inf
@@ -114,11 +111,9 @@ def spherical_boundaries_intersections(z, d, trust_radius,
     b = 2 * np.dot(z, d)
     c = np.dot(z, z) - trust_radius**2
     discriminant = b*b - 4*a*c
-
     if discriminant < 0:
         intersect = False
         return 0, 0, intersect
-
     sqrt_discriminant = np.sqrt(discriminant)
 
     # The following calculation is mathematically
@@ -131,7 +126,6 @@ def spherical_boundaries_intersections(z, d, trust_radius,
     aux = b + copysign(sqrt_discriminant, b)
     ta = -aux / (2*a)
     tb = -2*c / aux
-
     ta, tb = sorted([ta, tb])
 
     if line_intersections:
@@ -145,7 +139,6 @@ def spherical_boundaries_intersections(z, d, trust_radius,
             tb = 0
         else:
             intersect = True
-
             # Restrict intersection interval
             # between 0 and 1
             ta = max(0, ta)
@@ -190,7 +183,6 @@ def box_boundaries_intersections(z, d, lb, ub,
         and the retangular box. On the other hand, when ``False``, there is no
         intersection.
     """
-
     # Make sure it is a numpy array
     z = np.asarray(z)
     d = np.asarray(d)
@@ -199,13 +191,11 @@ def box_boundaries_intersections(z, d, lb, ub,
 
     # Get values for which d==0
     zero_d = (d == 0)
-
     # If the boundaries are not satisfied for some coordinate
     # for which "d" is zero, there is no box-line intersection
     if (z[zero_d] < lb[zero_d]).any() or (z[zero_d] > ub[zero_d]).any():
         intersect = False
         return 0, 0, intersect
-
     # Remove values for which d is zero
     not_zero_d = np.logical_not(zero_d)
     z = z[not_zero_d]
@@ -216,7 +206,6 @@ def box_boundaries_intersections(z, d, lb, ub,
     # Find a series of intervals (t_lb[i], t_ub[i])
     t_lb = (lb-z) / d
     t_ub = (ub-z) / d
-
     # Get the intersection of all those intervals
     ta = max(np.minimum(t_lb, t_ub))
     tb = min(np.maximum(t_lb, t_ub))
@@ -226,7 +215,6 @@ def box_boundaries_intersections(z, d, lb, ub,
         intersect = True
     else:
         intersect = False
-
     # Checks to see if intersection happens
     # within vectors lenght.
     if not line_intersections:
@@ -292,16 +280,13 @@ def box_sphere_boundaries_intersections(z, d, lb, ub, trust_radius,
         for which the line intercept the box. And a boolean value expliciting
         if it intercepts it or not.
     """
-
     ta_b, tb_b, intersect_b = box_boundaries_intersections(z, d, lb, ub,
                                                            line_intersections)
     ta_s, tb_s, intersect_s = spherical_boundaries_intersections(z, d,
                                                                  trust_radius,
                                                                  line_intersections)
-
     ta = np.maximum(ta_b, ta_s)
     tb = np.minimum(tb_b, tb_s)
-
     if intersect_b and intersect_s and ta <= tb:
         intersect = True
     else:
@@ -317,7 +302,6 @@ def box_sphere_boundaries_intersections(z, d, lb, ub, trust_radius,
 
 def inside_box_boundaries(x, lb, ub):
     "Check if lb <= x <= ub."
-
     return (lb <= x).all() and (x <= ub).all()
 
 
@@ -368,11 +352,9 @@ def modified_dogleg(A, Y, b, trust_radius, lb, ub):
            "An interior point algorithm for large-scale nonlinear
            programming." SIAM Journal on Optimization 9.4 (1999): 877-900.
     """
-
     # Compute minimum norm minimizer of 1/2*|| A x + b ||^2
     newton_point = -Y.dot(b)
-
-    # Check for interior poinr
+    # Check for interior point
     if inside_box_boundaries(newton_point, lb, ub)  \
        and np.linalg.norm(newton_point) <= trust_radius:
         x = newton_point
@@ -380,12 +362,10 @@ def modified_dogleg(A, Y, b, trust_radius, lb, ub):
 
     # Compute gradient vector ``g = A.T b``
     g = A.T.dot(b)
-
     # Compute cauchy point
     # `cauchy_point = g.T g / (g.T A.T A g)``
     A_g = A.dot(g)
     cauchy_point = -np.dot(g, g) / np.dot(A_g, A_g) * g
-
     # Origin
     origin_point = np.zeros_like(cauchy_point)
 
@@ -395,10 +375,8 @@ def modified_dogleg(A, Y, b, trust_radius, lb, ub):
     p = newton_point - cauchy_point
     _, alpha, intersect = box_sphere_boundaries_intersections(z, p, lb, ub,
                                                               trust_radius)
-
     if intersect:
         x1 = z + alpha*p
-
     else:
         # Check the segment between the origin and cauchy_point
         # for a possible solution
@@ -406,7 +384,6 @@ def modified_dogleg(A, Y, b, trust_radius, lb, ub):
         p = cauchy_point
         _, alpha, _ = box_sphere_boundaries_intersections(z, p, lb, ub,
                                                           trust_radius)
-
         x1 = z + alpha*p
 
     # Check the segment between origin and newton_point
@@ -415,7 +392,6 @@ def modified_dogleg(A, Y, b, trust_radius, lb, ub):
     p = newton_point
     _, alpha, _ = box_sphere_boundaries_intersections(z, p, lb, ub,
                                                       trust_radius)
-
     x2 = z + alpha*p
 
     # Return the best solution among x1 and x2
@@ -423,7 +399,6 @@ def modified_dogleg(A, Y, b, trust_radius, lb, ub):
         return x1
     else:
         return x2
-
 
 
 def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
@@ -506,7 +481,6 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
             programming problems arising in optimization."
             SIAM Journal on Scientific Computing 23.4 (2001): 1376-1395.
     """
-
     n, = np.shape(c)  # Number of parameters
     m, = np.shape(b)  # Number of constraints
 
@@ -519,7 +493,6 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
     # Store ``x`` value
     if return_all:
         allvecs = [x]
-
     # Values for the first iteration
     H_p = H.dot(p)
     rt_g = r.dot(g)
@@ -528,7 +501,6 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
     tr_distance = trust_radius - np.linalg.norm(x)
     if tr_distance < 0:
         raise ValueError("Trust region problem does not have a solution.")
-
     # If x == trust_radius, then x is the solution
     # to the optimization problem, since x is the
     # minimum norm solution to Ax=b.
@@ -538,24 +510,20 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
         if return_all:
             allvecs.append(x)
             info['allvecs'] = allvecs
-
         return x, hits_boundary, info
 
     # Set default tolerance
     if tol is None:
         tol = max(0.01 * np.sqrt(rt_g), 1e-20)
-
     # Set default lower and upper bounds
     if lb is None:
         lb = np.full(n, -np.inf)
     if ub is None:
         ub = np.full(n, np.inf)
-
     # Set maximum iteractions
     if max_iter is None:
         max_iter = n-m
     max_iter = min(max_iter, n-m)
-
     # Set maximum infeasible iteractions
     if max_infeasible_iter is None:
         max_infeasible_iter = n-m
@@ -564,20 +532,15 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
     stop_cond = 1
     counter = 0
     last_feasible_x = np.empty_like(x)
-
     k = 0
     for i in range(max_iter):
-
         # Stop criteria - Tolerance : r.T g < tol
         if rt_g < tol:
             stop_cond = 4
             break
-
         k += 1
-
         # Compute curvature
         pt_H_p = H_p.dot(p)
-
         # Stop criteria - Negative curvature
         if pt_H_p <= 0:
             if np.isinf(trust_radius):
@@ -605,48 +568,39 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
             # Find intersection with box constraints
             _, theta, intersect = box_sphere_boundaries_intersections(x, alpha*p, lb, ub,
                                                                       trust_radius)
-
             if intersect:
                 x = x + theta*alpha*p
             stop_cond = 2
             hits_boundary = True
             break
-
         # Check if ``x`` is inside box contraints
         # and start counter if it is not
         if inside_box_boundaries(x_next, lb, ub):
             counter = 0
         else:
             counter += 1
-
         # Whenever outside box constraints keep looking for intersections
         if counter > 0:
             _, theta, intersect = box_sphere_boundaries_intersections(x, alpha*p, lb, ub,
                                                                       trust_radius)
-
             if intersect:
                 last_feasible_x = x + theta*alpha*p
                 counter = 0
-
         # Stop after too many infeasible (regarding box constraints) iteration
         if counter > max_infeasible_iter:
             break
-
         # Store ``x_next`` value
         if return_all:
             allvecs.append(x_next)
 
         # Update residual
         r_next = r + alpha*H_p
-
         # Project residual g+ = Z r+
         g_next = Z.dot(r_next)
-
         # Compute conjugate direction step d
         rt_g_next = r_next.dot(g_next)
         beta = rt_g_next / rt_g
         p = - g_next + beta*p
-
         # Prepare for next iteration
         x = x_next
         g = g_next
@@ -657,7 +611,6 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
     if not inside_box_boundaries(x, lb, ub):
         x = last_feasible_x
         hits_boundary = True
-
     info = {'niter': k, 'stop_cond': stop_cond}
     if return_all:
         info['allvecs'] = allvecs
@@ -680,7 +633,6 @@ def qp_subproblem(H, c, A, Z, Y, b, trust_radius,
 
     For ``r`` chosen in such way the problem is feasible
     """
-
     n, = np.shape(c)  # Number of parameters
     m, = np.shape(b)  # Number of constraints
 
@@ -710,13 +662,12 @@ def qp_subproblem(H, c, A, Z, Y, b, trust_radius,
     c_t = H.dot(x_n) + c
     b_t = np.zeros(m)
     trust_radius_t = trust_radius - np.linalg.norm(x_n)
-    lb_t = lb - xn
-    ub_t = ub - xn
-
-    x_t, _, info_cg = projected_cg(H, c_t, Z, Y, b_t,
-                                   trust_radius_t,
-                                   lb_t, ub_t,
-                                   **cg_parameters)
+    lb_t = lb - x_n
+    ub_t = ub - x_n
+    x_t, hits_boundary, info_cg = projected_cg(H, c_t, Z, Y, b_t,
+                                               trust_radius_t,
+                                               lb_t, ub_t,
+                                               **cg_parameters)
 
     # tangencial + normal steps
     x = x_n + x_t

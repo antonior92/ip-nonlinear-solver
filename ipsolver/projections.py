@@ -32,10 +32,8 @@ def orthogonality(A, g):
             programming problems arising in optimization."
             SIAM Journal on Scientific Computing 23.4 (2001): 1376-1395.
     """
-
     # Compute vector norms
     norm_g = np.linalg.norm(g)
-
     # Compute frobenius norm of the matrix A
     if issparse(A):
         norm_A = linalg.norm(A, ord='fro')
@@ -47,10 +45,8 @@ def orthogonality(A, g):
         return 0
 
     norm_A_g = np.linalg.norm(A.dot(g))
-
     # Orthogonality measure
     orth = norm_A_g/(norm_A*norm_g)
-
     return orth
 
 
@@ -123,7 +119,6 @@ def projections(A, method=None, orth_tol=1e-12, max_refin=3):
         programming problems arising in optimization."
         SIAM Journal on Scientific Computing 23.4 (2001): 1376-1395.
     """
-
     m, n = np.shape(A)
 
     # Check Argument
@@ -142,13 +137,11 @@ def projections(A, method=None, orth_tol=1e-12, max_refin=3):
             raise ValueError("Method not allowed for the given matrix.")
 
     if method == 'NormalEquation':
-
         # Cholesky factorization
         factor = cholesky_AAt(A)
 
         # z = x - A.T inv(A A.T) A x
         def null_space(x):
-
             v = factor(A.dot(x))
             z = x - A.T.dot(v)
 
@@ -158,7 +151,6 @@ def projections(A, method=None, orth_tol=1e-12, max_refin=3):
             while orthogonality(A, z) > orth_tol:
                 if k >= max_refin:
                     break
-
                 # z_next = z - A.T inv(A A.T) A z
                 v = factor(A.dot(z))
                 z = z - A.T.dot(v)
@@ -175,10 +167,8 @@ def projections(A, method=None, orth_tol=1e-12, max_refin=3):
             return A.T.dot(factor(x))
 
     elif method == 'AugmentedSystem':
-
         # Form aumengted system
         K = csc_matrix(bmat([[eye(n), A.T], [A, None]]))
-
         # LU factorization
         # TODO: Use a symmetric indefinite factorization
         #       to solve the system twice as fast (because
@@ -193,11 +183,9 @@ def projections(A, method=None, orth_tol=1e-12, max_refin=3):
             # v = [x]
             #     [0]
             v = np.hstack([x, np.zeros(m)])
-
             # lu_sol = [ z ]
             #          [aux]
             lu_sol = factor.solve(v)
-
             z = lu_sol[:n]
 
             # Iterative refinement to improve roundoff
@@ -206,19 +194,15 @@ def projections(A, method=None, orth_tol=1e-12, max_refin=3):
             while orthogonality(A, z) > orth_tol:
                 if k >= max_refin:
                     break
-
                 # new_v = [x] - [I A.T] * [ z ]
                 #         [0]   [A  O ]   [aux]
                 new_v = v - K.dot(lu_sol)
-
                 # [I A.T] * [delta  z ] = new_v
                 # [A  O ]   [delta aux]
                 lu_update = factor.solve(new_v)
-
                 #  [ z ] += [delta  z ]
                 #  [aux]    [delta aux]
                 lu_sol += lu_update
-
                 z = lu_sol[:n]
                 k += 1
 
@@ -233,11 +217,9 @@ def projections(A, method=None, orth_tol=1e-12, max_refin=3):
             # v = [x]
             #     [0]
             v = np.hstack([x, np.zeros(m)])
-
             # lu_sol = [aux]
             #          [ z ]
             lu_sol = factor.solve(v)
-
             # return z = inv(A A.T) A x
             return lu_sol[n:m+n]
 
@@ -249,22 +231,18 @@ def projections(A, method=None, orth_tol=1e-12, max_refin=3):
             # v = [0]
             #     [x]
             v = np.hstack([np.zeros(n), x])
-
             # lu_sol = [ z ]
             #          [aux]
             lu_sol = factor.solve(v)
-
             # return z = A.T inv(A A.T) x
             return lu_sol[:n]
 
     elif method == "QRFactorization":
-
         # QRFactorization
         Q, R, P = scipy.linalg.qr(A.T, pivoting=True,  mode='economic')
 
         # z = x - A.T inv(A A.T) A x
         def null_space(x):
-
             # v = P inv(R) Q.T x
             aux1 = (Q.T).dot(x)
             aux2 = scipy.linalg.solve_triangular(R, aux1, lower=False)
@@ -277,12 +255,10 @@ def projections(A, method=None, orth_tol=1e-12, max_refin=3):
             while orthogonality(A, z) > orth_tol:
                 if k >= max_refin:
                     break
-
                 # v = P inv(R) Q.T x
                 aux1 = (Q.T).dot(z)
                 aux2 = scipy.linalg.solve_triangular(R, aux1, lower=False)
                 v = aux2[P]
-
                 # z_next = z - A.T v
                 z = z - A.T.dot(v)
                 k += 1
@@ -291,17 +267,14 @@ def projections(A, method=None, orth_tol=1e-12, max_refin=3):
 
         # z = inv(A A.T) A x
         def least_squares(x):
-
             # z = P inv(R) Q.T x
             aux1 = (Q.T).dot(x)
             aux2 = scipy.linalg.solve_triangular(R, aux1, lower=False)
             z = aux2[P]
-
             return z
 
         # z = A.T inv(A A.T) x
         def row_space(x):
-
             # z = Q inv(R.T) P.T x
             aux1 = np.zeros(m)
             aux1[P] = x
@@ -309,7 +282,6 @@ def projections(A, method=None, orth_tol=1e-12, max_refin=3):
                                                  lower=False,
                                                  trans='T')
             z = Q.dot(aux2)
-
             return z
 
     Z = LinearOperator((n, n), null_space)
