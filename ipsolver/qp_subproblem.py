@@ -340,7 +340,7 @@ def modified_dogleg(A, Y, b, trust_radius, lb, ub):
     Returns
     -------
     x : array_like, shape (n,)
-        Solution to the problem
+        Solution to the problem.
 
     Notes
     -----
@@ -451,7 +451,7 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
     Returns
     -------
     x : array_like, shape (n,)
-        Solution of the KKT problem
+        Solution of the EQP problem.
     hits_boundary : bool
         True if the proposed step is on the boundary of the trust region.
     info : Dict
@@ -631,7 +631,79 @@ def qp_subproblem(H, c, A, Z, Y, b, trust_radius,
         ||x|| <= trust_radius
         lb <= x <= ub
 
-    For ``r`` chosen in such way the problem is feasible
+    For ``r`` chosen in such way the problem is feasible.
+
+    Parameters
+    ----------
+    H : LinearOperator (or sparse matrix or ndarray), shape (n, n)
+        Operator for computing ``H v``.
+    c : array_like, shape (n,)
+        Gradient of the quadratic objective function.
+    A : LinearOperator (or sparse matrix or ndarray), shape (m, n)
+        Matrix ``A`` in the equality constraint. It should have
+        dimension ``(m, n)`` such that ``m < n``.
+    Z : LinearOperator (or sparse matrix or ndarray), shape (n, n)
+        Operator for projecting ``x`` into the null space of A.
+    Y : LinearOperator,  sparse matrix, ndarray, shape (n, m)
+        Operator that, for a given a vector ``b``, compute smallest
+        norm solution of ``A x + b = 0``.
+    b : array_like, shape (m,)
+        Right-hand side of the constraint equation.
+    trust_radius : float
+        Trust radius to be considered. By default uses ``trust_radius=inf``,
+        which means no trust radius at all.
+    lb : array_like, shape (n,), optional
+        Lower bounds to each one of the components of ``x``.
+        If ``lb[i] = -Inf`` the lower bound for the i-th
+        component is just ignored (default).
+    ub : array_like, shape (n, ), optional
+        Upper bounds to each one of the components of ``x``.
+        If ``ub[i] = Inf`` the upper bound for the i-th
+        component is just ignored (default).
+    tr_factor : float, optional
+        Value between 0 and 1 used to weight the trust radius.
+        Default is 0.8.
+    box_factor : float, optional
+        Value between 0 and 1 used to weight the box constraints.
+        Default is 0.5.
+    cg_parameters : Dict
+        Dictionary containing parameters for the CG procedure:
+
+            - tol : Tolerance used to interrupt the algorithm.
+            - max_inter : Maximum algorithm iteractions. Where
+                ``max_inter <= n-m``. By default uses
+                ``max_iter = n-m``.
+            - max_infeasible_iter : int, optional
+                Maximum infeasible (regarding box
+                constraints) iterations the
+                algorithm is allowed to take.
+                By default uses
+                ``max_infeasible_iter = n-m``.
+            - return_all : bool, optional
+                When ``True`` return the list of all
+                vectors through the iterations.
+
+    Returns
+    -------
+    x : array_like, shape (n,)
+        Solution of the trust-region EQP problem.
+    r : array_like, shape (m,)
+        Equality constraint residual. The value of ``r`` makes
+        the problem ``Ax+b=r`` compatible with the other
+        constraints.
+    hits_boundary : bool
+        True if the proposed step is on the boundary of the trust region.
+    info_cg : Dict
+        Dictionary containing the informations about the CG procedure:
+
+            - niter : Number of CG iteractions.
+            - stop_cond : Reason for CG algorithm termination:
+                1. Iteration limit was reached;
+                2. Reached trust-region boundarie;
+                3. Negative curvature detected;
+                4. Tolerance was satisfied.
+            - allvecs : List containing all intermediary vectors
+                of CG (optional).
     """
     n, = np.shape(c)  # Number of parameters
     m, = np.shape(b)  # Number of constraints
@@ -650,7 +722,7 @@ def qp_subproblem(H, c, A, Z, Y, b, trust_radius,
                           tr_factor*trust_radius,
                           box_factor*lb,
                           box_factor*ub)
-    r = A.dot(x)
+    r = A.dot(x_n) + b
 
     # *** Tangencial Step ***
     # Solve the problem:
@@ -673,4 +745,4 @@ def qp_subproblem(H, c, A, Z, Y, b, trust_radius,
     # tangencial + normal steps
     x = x_n + x_t
 
-    return x, info_cg
+    return x, r, hits_boundary, info_cg
