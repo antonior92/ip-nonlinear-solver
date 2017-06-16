@@ -971,3 +971,62 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
         info['allvecs'] = allvecs
 
     return x, hits_boundary, info
+
+
+def qp_subproblem(H, c, A, Z, Y, b, trust_radius,
+                  lb=None, ub=None, tr_factor=0.8,
+                  box_factor=0.5, cg_parameters=None):
+    """Solve (approximately) trust-region EQP problem using projected CG.
+
+    Solve problem:
+
+        minimize 1/2 x.T H x + x.T c
+        subject to:
+        A x + b = r
+        ||x|| <= trust_radius
+        lb <= x <= ub
+
+    For ``r`` chosen in such way the problem is feasible
+    """
+
+    n, = np.shape(c)  # Number of parameters
+    m, = np.shape(b)  # Number of constraints
+
+    # Set default lower and upper bounds.
+    if lb is None:
+        lb = np.full(n, -np.inf)
+    if ub is None:
+        ub = np.full(n, np.inf)
+
+    # *** Normal step ***
+    # Compute minimizer of 1/2*||A x + b||^2 subject to
+    # theconstraints: ||x|| <=  tr_factor * trust_radius
+    # box_factor * lb <= x <= box_factor * ub.
+    x_n = modified_dogleg(A, Y, b,
+                          tr_factor*trust_radius,
+                          box_factor*lb,
+                          box_factor*ub)
+
+    # *** Tangencial Step ***
+    # Solve the problem:
+    # minimize 1/2 x_t.T H x_t + x_t.T (c + H x_n)
+    # subject to:
+    # A x_t = 0
+    # ||x_t|| <= trust_radius - ||x_n||
+    # lb - x_n <= x_t <= ub - x_n
+    # (x_t -> tangencial step, x_n -> normal step).
+    c_t = H.dot(x_n) + c
+    b_t = np.zeros(m)
+    trust_radius_t = trust_radius - np.linalg.norm(x_n)
+    lb_t = lb - xn
+    ub_t = ub - xn
+
+    x_t, _, info_cg = projected_cg(H, c_t, Z, Y, b_t,
+                                             trust_radius_t,
+                                             lb_t, ub_t,
+                                             **cg_parameters)
+
+    # tangencial + normal steps
+    x = x_n + x_t
+
+    return x, info_cg
