@@ -4,7 +4,6 @@ Equality-constrained quadratic programming solvers.
 
 from __future__ import division, print_function, absolute_import
 from scipy.sparse import (linalg, bmat, csc_matrix)
-import scipy.linalg
 from math import copysign
 import numpy as np
 
@@ -687,8 +686,10 @@ def qp_subproblem(H, c, A, Z, Y, b, trust_radius,
 
     Returns
     -------
-    x : array_like, shape (n,)
-        Solution of the trust-region EQP problem.
+    x_n : array_like, shape (n,)
+        Normal step.
+    x_t : array_like, shape (n,)
+        Tangential step.
     r : array_like, shape (m,)
         Equality constraint residual. The value of ``r`` makes
         the problem ``Ax+b=r`` compatible with the other
@@ -718,7 +719,7 @@ def qp_subproblem(H, c, A, Z, Y, b, trust_radius,
 
     # *** Normal step ***
     # Compute minimizer of 1/2*||A x + b||^2 subject to
-    # theconstraints: ||x|| <=  tr_factor * trust_radius
+    # the constraints: ||x|| <=  tr_factor * trust_radius
     # box_factor * lb <= x <= box_factor * ub.
     x_n = modified_dogleg(A, Y, b,
                           tr_factor*trust_radius,
@@ -743,7 +744,5 @@ def qp_subproblem(H, c, A, Z, Y, b, trust_radius,
                                                trust_radius_t,
                                                lb_t, ub_t,
                                                **cg_parameters)
-    # tangencial + normal steps
-    x = x_n + x_t
 
-    return x, r, hits_boundary, info_cg
+    return x_n, x_t, r, hits_boundary, info_cg

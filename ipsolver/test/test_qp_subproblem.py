@@ -657,11 +657,12 @@ class TestQPSubproblem(TestCase):
         b = -np.array([3, 0])
         trust_radius = 3
         Z, _, Y = projections(A)
-        x, r, hits_boundary, info = qp_subproblem(H, c, A, Z, Y, b,
-                                                  trust_radius,
-                                                  tr_factor=1)
+        x_n, x_t, r, hits_boundary, info = qp_subproblem(H, c, A, Z, Y, b,
+                                                         trust_radius,
+                                                         tr_factor=1)
         x_pcg, hits_boundary_pcg, info_pcg = projected_cg(H, c, Z, Y, b,
                                                           trust_radius)
+        x = x_n + x_t
         assert_array_almost_equal(r, np.zeros(2))
         assert_array_almost_equal(x, x_pcg)
         assert_equal(hits_boundary, hits_boundary_pcg)
@@ -682,10 +683,12 @@ class TestQPSubproblem(TestCase):
         lb = np.array([-1, -0.7, -1, -1.5])
         ub = np.array([1.9, np.inf, np.inf, np.inf])
         Z, _, Y = projections(A)
-        x, r, hits_boundary, info = qp_subproblem(H, c, A, Z, Y, b,
-                                                  trust_radius, lb, ub,
-                                                  tr_factor=1,
-                                                  box_factor=1)
+        x_n, x_t, r, hits_boundary, info = qp_subproblem(H, c, A, Z, Y, b,
+                                                         trust_radius,
+                                                         lb, ub,
+                                                         tr_factor=1,
+                                                         box_factor=1)
+        x = x_n + x_t
         x_pcg, hits_boundary_pcg, info_pcg = projected_cg(H, c, Z, Y, b,
                                                           trust_radius, lb, ub)
         assert_array_almost_equal(r, np.zeros(2))
@@ -707,10 +710,11 @@ class TestQPSubproblem(TestCase):
         b = -np.array([3, 0])
         trust_radius = 2
         Z, _, Y = projections(A)
-        x, r, hits_boundary, info = qp_subproblem(H, c, A, Z, Y, b,
-                                                  trust_radius,
-                                                  tr_factor=1,
-                                                  box_factor=1)
+        x_n, x_t, r, hits_boundary, info = qp_subproblem(H, c, A, Z, Y, b,
+                                                         trust_radius,
+                                                         tr_factor=1,
+                                                         box_factor=1)
+        x = x_n + x_t
         assert_raises(ValueError, projected_cg, H, c, Z, Y, b,
                       trust_radius)
         assert_array_less(0, np.linalg.norm(r))
@@ -730,8 +734,10 @@ class TestQPSubproblem(TestCase):
         lb = np.array([-1, -0.7, -1, -1.5])
         ub = np.array([0.7, np.inf, np.inf, np.inf])
         Z, _, Y = projections(A)
-        x, r, hits_boundary, info = qp_subproblem(H, c, A, Z, Y, b,
-                                                  trust_radius, lb, ub)
+        x_n, x_t, r, hits_boundary, info = qp_subproblem(H, c, A, Z, Y, b,
+                                                         trust_radius, lb,
+                                                         ub)
+        x = x_n + x_t
         assert_array_less(0, np.linalg.norm(r))
         assert_array_almost_equal(A.dot(x)+b, r)
         assert_(np.linalg.norm(x) <= trust_radius)
