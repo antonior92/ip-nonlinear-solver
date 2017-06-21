@@ -1,4 +1,4 @@
-""" 
+"""
 Implement Byrd-Omojokun Trust-Region SQP method
 """
 from __future__ import division, print_function, absolute_import
@@ -9,11 +9,31 @@ from .qp_subproblem import qp_subproblem
 import numpy as np
 from numpy.linalg import norm
 
+__all__ = [
+    'byrd_omojokun_sqp',
+]
 
-def byrd_omojokun_sqp(f, g, H, c, A, x0, trust_radius0,
-                      stop_criteria, tr_scaling,
-                      tr_lb=None, tr_ub=None,
-                      penalty0=1):
+
+def default_tr_scalling(x):
+    return np.ones_like(x)
+
+
+def default_stop_criteria(xk, lambda_k, fk, gk, ck, Ak, k, trust_radiusk):
+    opt = np.linalg.norm(gk - Ak.T.dot(lambda_k))
+    const = np.linalg.norm(ck)
+
+    if opt < 1e-8 and const < 1e-8 and k < 1000:
+        return False
+    else:
+        return True
+
+
+def byrd_omojokun_sqp(f, g, H, c, A, x0,
+                      stop_criteria=default_stop_criteria,
+                      tr_scaling=default_tr_scalling,
+                      trust_radius0=1.0,
+                      penalty0=1.0,
+                      tr_lb=None, tr_ub=None):
     """Solve nonlinear equality-constrained problem using trust-region SQP.
 
     Solve problem:
@@ -47,32 +67,30 @@ def byrd_omojokun_sqp(f, g, H, c, A, x0, trust_radius0,
         Initial trust-region
     stop_criteria: callable
         Functions that returns True when stop criteria is fulfilled:
-            stop_criteria(xk, lambdak, fk, gk, ck, Ak, k, trust_radiusk)
+            stop_criteria(xk, lambda_k, fk, gk, ck, Ak, k, trust_radiusk)
     tr_scaling : callable
         Function that return scaling for the trust region:
             tr_scaling(x) -> array_like, shape (n,)
+    penalty0 : float
+        Initial penalty for merit function.
     tr_lb : array_like, shape (n,), optional
         Lower bound for step (after the scaling).
     tr_ub : array_like, shape (n,), optional
         Upper bound for step (after the scaling).
-    penalty0 : float
-        Initial penalty for merit function.
 
     Notes
     -----
     This algorithm is a variation of Byrd-Omojokun Trust-Region
-    SQP method (described in [3] p.549).
+    SQP method (described in [2]_ p.549). The details of this specific
+    implementation are inspired by [1]_ and is used as a substep
+    of a larger solver.
 
     References
     ----------
     .. [1] Byrd, Richard H., Mary E. Hribar, and Jorge Nocedal.
            "An interior point algorithm for large-scale nonlinear
            programming." SIAM Journal on Optimization 9.4 (1999): 877-900.
-    .. [2] Byrd, Richard H., Jean Charles Gilbert, and Jorge Nocedal.
-           "A trust region method based on interior point techniques
-           for nonlinear programming." Mathematical Programming 89.1
-           (2000): 149-185.
-    .. [3] Nocedal, Jorge, and Stephen J. Wright. "Numerical optimization"
+    .. [2] Nocedal, Jorge, and Stephen J. Wright. "Numerical optimization"
            Second Edition (2006).
     """
     PENALTY_FACTOR = 0.3  # Rho from formula (3.51), reference [1]_, p.891.
@@ -212,3 +230,4 @@ def byrd_omojokun_sqp(f, g, H, c, A, x0, trust_radius0,
             compute_Hk = False
 
     return xk, lambda_k, trust_radiusk
+
