@@ -505,7 +505,7 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
     # If x == trust_radius, then x is the solution
     # to the optimization problem, since x is the
     # minimum norm solution to Ax=b.
-    elif tr_distance < 1e-12:
+    elif tr_distance < 1e-30:
         hits_boundary = True
         info = {'niter': 0, 'stop_cond': 2}
         if return_all:
@@ -515,7 +515,7 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
 
     # Set default tolerance
     if tol is None:
-        tol = max(0.01 * np.sqrt(rt_g), 1e-20)
+        tol = max(min(0.01 * np.sqrt(rt_g), 0.1 * rt_g), 1e-20)
     # Set default lower and upper bounds
     if lb is None:
         lb = np.full(n, -np.inf)
