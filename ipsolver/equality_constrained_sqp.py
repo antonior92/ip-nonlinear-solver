@@ -4,7 +4,8 @@ Implement Byrd-Omojokun Trust-Region SQP method
 from __future__ import division, print_function, absolute_import
 import scipy.sparse as spc
 from .projections import projections
-from .qp_subproblem import qp_subproblem, inside_box_boundaries
+from .qp_subproblem import (qp_subproblem, inside_box_boundaries,
+                            box_sphere_intersections)
 import numpy as np
 from numpy.linalg import norm
 
@@ -217,6 +218,24 @@ def equality_constrained_sqp(fun, grad, hess, constr, jac,
         # Compute reduction ratio
         reduction_ratio = actual_reduction / predicted_reduction
 
+        # Second order correction (SOC), reference [1]_, p.892.
+        if reduction_ratio < SUFFICIENT_REDUCTION_RATIO and \
+           norm(dn) <= SOC_THRESHOLD * norm(dt):
+            # Compute second order correction
+            y = -Y.dot(b_next)
+            # Recompute ared
+            f_soc = fun(x+d+y)
+            b_soc = constr(x+d+y)
+            merit_function_soc = f_soc + penalty*norm(b_soc)
+            actual_reduction_soc = merit_function - merit_function_soc
+            # Recompute reduction ratio
+            reduction_ratio_soc = actual_reduction_soc / predicted_reduction
+            if reduction_ratio_soc >= SUFFICIENT_REDUCTION_RATIO:
+                d = d + y
+                f_next = f_soc
+                b_next = b_soc
+                reduction_ratio = reduction_ratio_soc
+
         # Reajust trust region step, formula (3.55), reference [1]_, p.892.
         if reduction_ratio >= LARGE_REDUCTION_RATIO:
             trust_radius = max(TRUST_ENLARGEMENT_FACTOR_L * norm(d),
@@ -225,32 +244,6 @@ def equality_constrained_sqp(fun, grad, hess, constr, jac,
             trust_radius = max(TRUST_ENLARGEMENT_FACTOR_S * norm(d),
                                trust_radius)
         elif reduction_ratio < SUFFICIENT_REDUCTION_RATIO:
-            # Second order correction (SOC), reference [1]_, p.892.
-            if norm(dn) <= SOC_THRESHOLD * norm(dt):
-                # Update steps
-                y = Y.dot(b_next)
-                # Recompute ared
-                f_soc = fun(x+d+y)
-                b_soc = constr(x+d+y)
-                merit_function_soc = f_soc + penalty*norm(b_soc)
-                actual_reduction_soc = merit_function - merit_function_soc
-                # Recompute reduction ratio
-                reduction_ratio_soc = actual_reduction_soc / predicted_reduction
-                if reduction_ratio_soc >= SUFFICIENT_REDUCTION_RATIO and \
-                   inside_box_boundaries(d+y, trust_lb, trust_ub):
-                    d = d + y
-                    f_next = f_soc
-                    b_next = b_soc
-                    reduction_ratio = reduction_ratio_soc
-                else:
-                    new_trust_radius = TRUST_REDUCTION_FACTOR * norm(d)
-                    if new_trust_radius >= MAX_TRUST_REDUCTION * trust_radius:
-                        trust_radius *= MAX_TRUST_REDUCTION
-                    elif new_trust_radius >= MIN_TRUST_REDUCTION * trust_radius:
-                        trust_radius = new_trust_radius
-                    else:
-                        trust_radius *= MIN_TRUST_REDUCTION
-            else:
                 new_trust_radius = TRUST_REDUCTION_FACTOR * norm(d)
                 if new_trust_radius >= MAX_TRUST_REDUCTION * trust_radius:
                     trust_radius *= MAX_TRUST_REDUCTION
@@ -282,13 +275,13 @@ def equality_constrained_sqp(fun, grad, hess, constr, jac,
             allmult.append(np.copy(v))
 
     opt = norm(c + A.T.dot(v))
-    constr = norm(b)
+    constr_violation = norm(b)
     info = {'niter': iteration, 'trust_radius': trust_radius,
             'v': v, 'fun': f,
             'grad': c, 'hess': H,
             'constr': b, 'jac': A,
             'opt': opt,
-            'c_violation': constr}
+            'constr_violation': constr_violation}
     if return_all:
         info['allvecs'] = allvecs
         info['allmult'] = allmult
