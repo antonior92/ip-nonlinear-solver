@@ -114,9 +114,8 @@ def equality_constrained_sqp(fun, grad, hess, constr, jac,
     Notes
     -----
     This algorithm is a variation of Byrd-Omojokun Trust-Region
-    SQP method (described in [2]_ p.549). The details of this specific
-    implementation are inspired by [1]_ and it is used as a substep
-    of a interior point method.
+    SQP method (described in [2]_ p.549 and in [3]_).Some details of
+    this specific implementation are also inspired by [1]_.
 
     At each substep solve, using the projected CG method, the trust-region
     QP subproblem:
@@ -135,12 +134,15 @@ def equality_constrained_sqp(fun, grad, hess, constr, jac,
            programming." SIAM Journal on Optimization 9.4 (1999): 877-900.
     .. [2] Nocedal, Jorge, and Stephen J. Wright. "Numerical optimization"
            Second Edition (2006).
+    .. [3] Lalee, Marucha, Jorge Nocedal, and Todd Plantenga. "On the
+           implementation of an algorithm for large-scale equality
+           constrained optimization." SIAM Journal on
+           Optimization 8.3 (1998): 682-706.
     """
     PENALTY_FACTOR = 0.3  # Rho from formula (3.51), reference [1]_, p.891.
     LARGE_REDUCTION_RATIO = 0.9
     INTERMEDIARY_REDUCTION_RATIO = 0.3
     SUFFICIENT_REDUCTION_RATIO = 1e-8  # Eta described on reference [1]_, p.892.
-    TRUST_REDUCTION_FACTOR = 0.5
     TRUST_ENLARGEMENT_FACTOR_L = 7
     TRUST_ENLARGEMENT_FACTOR_S = 2
     MAX_TRUST_REDUCTION = 0.5
@@ -243,8 +245,10 @@ def equality_constrained_sqp(fun, grad, hess, constr, jac,
         elif reduction_ratio >= INTERMEDIARY_REDUCTION_RATIO:
             trust_radius = max(TRUST_ENLARGEMENT_FACTOR_S * norm(d),
                                trust_radius)
+        # Reduce trust region step, according to reference [3]_, p.696.
         elif reduction_ratio < SUFFICIENT_REDUCTION_RATIO:
-                new_trust_radius = TRUST_REDUCTION_FACTOR * norm(d)
+                trust_reduction = (1-SUFFICIENT_REDUCTION_RATIO) / (1-reduction_ratio)
+                new_trust_radius = trust_reduction * norm(d)
                 if new_trust_radius >= MAX_TRUST_REDUCTION * trust_radius:
                     trust_radius *= MAX_TRUST_REDUCTION
                 elif new_trust_radius >= MIN_TRUST_REDUCTION * trust_radius:
