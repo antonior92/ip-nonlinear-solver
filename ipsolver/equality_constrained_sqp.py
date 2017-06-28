@@ -1,11 +1,9 @@
-"""
-Implement Byrd-Omojokun Trust-Region SQP method
-"""
+"""Byrd-Omojokun Trust-Region SQP method."""
+
 from __future__ import division, print_function, absolute_import
 import scipy.sparse as spc
 from .projections import projections
-from .qp_subproblem import (qp_subproblem, inside_box_boundaries,
-                            box_sphere_intersections)
+from .qp_subproblem import qp_subproblem
 import numpy as np
 from numpy.linalg import norm
 
@@ -14,7 +12,7 @@ __all__ = [
 ]
 
 
-def default_scalling(x):
+def default_scaling(x):
     n, = np.shape(x)
     return spc.eye(n)
 
@@ -38,7 +36,7 @@ def equality_constrained_sqp(fun, grad, hess, constr, jac,
                              trust_ub=None,
                              stop_criteria=default_stop_criteria,
                              initial_penalty=1.0,
-                             scaling=default_scalling,
+                             scaling=default_scaling,
                              return_all=False):
     """Solve nonlinear equality-constrained problem using trust-region SQP.
 
@@ -142,7 +140,7 @@ def equality_constrained_sqp(fun, grad, hess, constr, jac,
     PENALTY_FACTOR = 0.3  # Rho from formula (3.51), reference [1]_, p.891.
     LARGE_REDUCTION_RATIO = 0.9
     INTERMEDIARY_REDUCTION_RATIO = 0.3
-    SUFFICIENT_REDUCTION_RATIO = 1e-8  # Eta described on reference [1]_, p.892.
+    SUFFICIENT_REDUCTION_RATIO = 1e-8  # Eta from reference [1]_, p.892.
     TRUST_ENLARGEMENT_FACTOR_L = 7
     TRUST_ENLARGEMENT_FACTOR_S = 2
     MAX_TRUST_REDUCTION = 0.5
@@ -210,8 +208,8 @@ def equality_constrained_sqp(fun, grad, hess, constr, jac,
         # Compute merit function at current point
         merit_function = f + penalty*norm(b)
         # Evaluate function and constraints at trial point
-        f_next = fun(x+d)
-        b_next = constr(x+d)
+        f_next = fun(x + d)
+        b_next = constr(x + d)
         # Compute merit function at trial point
         merit_function_next = f_next + penalty*norm(b_next)
         # Compute actual reduction according to formula (3.54),
@@ -226,8 +224,8 @@ def equality_constrained_sqp(fun, grad, hess, constr, jac,
             # Compute second order correction
             y = -Y.dot(b_next)
             # Recompute ared
-            f_soc = fun(x+d+y)
-            b_soc = constr(x+d+y)
+            f_soc = fun(x + d + y)
+            b_soc = constr(x + d + y)
             merit_function_soc = f_soc + penalty*norm(b_soc)
             actual_reduction_soc = merit_function - merit_function_soc
             # Recompute reduction ratio
@@ -238,7 +236,7 @@ def equality_constrained_sqp(fun, grad, hess, constr, jac,
                 b_next = b_soc
                 reduction_ratio = reduction_ratio_soc
 
-        # Reajust trust region step, formula (3.55), reference [1]_, p.892.
+        # Readjust trust region step, formula (3.55), reference [1]_, p.892.
         if reduction_ratio >= LARGE_REDUCTION_RATIO:
             trust_radius = max(TRUST_ENLARGEMENT_FACTOR_L * norm(d),
                                trust_radius)

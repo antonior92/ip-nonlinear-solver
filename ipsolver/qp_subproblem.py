@@ -1,6 +1,4 @@
-"""
-Equality-constrained quadratic programming solvers.
-"""
+"""Equality-constrained quadratic programming solvers."""
 
 from __future__ import division, print_function, absolute_import
 from scipy.sparse import (linalg, bmat, csc_matrix)
@@ -47,11 +45,11 @@ def eqp_kktfact(H, c, A, b):
     n, = np.shape(c)  # Number of parameters
     m, = np.shape(b)  # Number of constraints
 
-    # Karush-Kuhn-Tucker matrix of coeficients.
+    # Karush-Kuhn-Tucker matrix of coefficients.
     # Defined as in Nocedal/Wright "Numerical
     # Optimization" p.452 in Eq. (16.4).
     kkt_matrix = csc_matrix(bmat([[H, A.T], [A, None]]))
-    # Vector of coeficients.
+    # Vector of coefficients.
     kkt_vec = np.hstack([-c, -b])
 
     # TODO: Use a symmetric indefinite factorization
@@ -133,7 +131,7 @@ def sphere_intersections(z, d, trust_radius,
         intersect = True
     else:
         # Checks to see if intersection happens
-        # within vectors lenght.
+        # within vectors length.
         if tb < 0 or ta > 1:
             intersect = False
             ta = 0
@@ -153,7 +151,7 @@ def box_intersections(z, d, lb, ub,
     """Find the intersection between segment (or line) and box constraints.
 
     Find the intersection between the segment (or line) defined by the
-    parametric  equation ``x(t) = z + t*d`` and the retangular box
+    parametric  equation ``x(t) = z + t*d`` and the rectangular box
     ``lb <= x <= ub``.
 
     Parameters
@@ -164,15 +162,15 @@ def box_intersections(z, d, lb, ub,
         Direction.
     lb : array_like, shape (n,)
         Lower bounds to each one of the components of ``x``. Used
-        to delimit the retangular box.
+        to delimit the rectangular box.
     ub : array_like, shape (n, )
         Upper bounds to each one of the components of ``x``. Used
-        to delimit the retangular box.
+        to delimit the rectangular box.
     entire_line : bool, optional
         When ``True`` the function returns the intersection between the line
-        ``x(t) = z + t*d`` (``t`` can assume any value) and the retangular box.
-        When ``False`` returns the intersection between the segment
-        ``x(t) = z + t*d``, ``0 <= t <= 1``, and the retangular box.
+        ``x(t) = z + t*d`` (``t`` can assume any value) and the rectangular
+        box. When ``False`` returns the intersection between the segment
+        ``x(t) = z + t*d``, ``0 <= t <= 1``, and the rectangular box.
 
     Returns
     -------
@@ -181,7 +179,7 @@ def box_intersections(z, d, lb, ub,
         for ``ta <= t <= tb``.
     intersect : bool
         When ``True`` there is a intersection between the line (or segment)
-        and the retangular box. On the other hand, when ``False``, there is no
+        and the rectangular box. On the other hand, when ``False``, there is no
         intersection.
     """
     # Make sure it is a numpy array
@@ -216,16 +214,14 @@ def box_intersections(z, d, lb, ub,
         intersect = True
     else:
         intersect = False
-    # Checks to see if intersection happens
-    # within vectors lenght.
+    # Checks to see if intersection happens within vectors length.
     if not entire_line:
         if tb < 0 or ta > 1:
             intersect = False
             ta = 0
             tb = 0
         else:
-            # Restrict intersection interval
-            # between 0 and 1.
+            # Restrict intersection interval between 0 and 1.
             ta = max(0, ta)
             tb = min(1, tb)
 
@@ -238,7 +234,7 @@ def box_sphere_intersections(z, d, lb, ub, trust_radius,
     """Find the intersection between segment (or line) and box/sphere constraints.
 
     Find the intersection between the segment (or line) defined by the
-    parametric  equation ``x(t) = z + t*d``,  the retangular box
+    parametric  equation ``x(t) = z + t*d``,  the rectangular box
     ``lb <= x <= ub`` and the ball ``||x|| <= trust_radius``.
 
     Parameters
@@ -249,10 +245,10 @@ def box_sphere_intersections(z, d, lb, ub, trust_radius,
         Direction.
     lb : array_like, shape (n,)
         Lower bounds to each one of the components of ``x``. Used
-        to delimit the retangular box.
+        to delimit the rectangular box.
     ub : array_like, shape (n, )
         Upper bounds to each one of the components of ``x``. Used
-        to delimit the retangular box.
+        to delimit the rectangular box.
     trust_radius : float
         Ball radius.
     entire_line : bool, optional
@@ -266,20 +262,20 @@ def box_sphere_intersections(z, d, lb, ub, trust_radius,
     Returns
     -------
     ta, tb : float
-        The line/segment ``x(t) = z + t*d`` is inside the retangular box and
+        The line/segment ``x(t) = z + t*d`` is inside the rectangular box and
         inside the ball for for ``ta <= t <= tb``.
     intersect : bool
         When ``True`` there is a intersection between the line (or segment)
         and both constraints. On the other hand, when ``False``, there is no
         intersection.
-    sphere_info : dictionary, optional
+    sphere_info : dict, optional
         Dictionary ``{ta, tb, intersect}`` containing the interval ``[ta, tb]``
-        for which the line intercept the ball. And a boolean value expliciting
-        if it intercepts it or not.
-    box_info : Dictionary, optional
+        for which the line intercept the ball. And a boolean value indicating
+        whether the sphere is intersected by the line.
+    box_info : dict, optional
         Dictionary ``{ta, tb, intersect}`` containing the interval ``[ta, tb]``
-        for which the line intercept the box. And a boolean value expliciting
-        if it intercepts it or not.
+        for which the line intercept the box. And a boolean value indicating
+        whether the box is intersected by the line.
     """
     ta_b, tb_b, intersect_b = box_intersections(z, d, lb, ub,
                                                 entire_line)
@@ -302,14 +298,14 @@ def box_sphere_intersections(z, d, lb, ub, trust_radius,
 
 
 def inside_box_boundaries(x, lb, ub):
-    "Check if lb <= x <= ub."
+    """Check if lb <= x <= ub."""
     return (lb <= x).all() and (x <= ub).all()
 
 
 def modified_dogleg(A, Y, b, trust_radius, lb, ub):
-    """Approximatelly  minimize ``1/2*|| A x + b ||^2`` inside trust-region.
+    """Approximately  minimize ``1/2*|| A x + b ||^2`` inside trust-region.
 
-    Approximatelly solve the problem of minimizing ``1/2*|| A x + b ||^2``
+    Approximately solve the problem of minimizing ``1/2*|| A x + b ||^2``
     subject to ``||x|| < Delta`` and ``lb <= x <= ub`` using a modification
     of the classical dogleg approach.
 
@@ -439,8 +435,8 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
         component is just ignored (default).
     tol : float, optional
         Tolerance used to interrupt the algorithm.
-    max_inter : int, optional
-        Maximum algorithm iteractions. Where ``max_inter <= n-m``.
+    max_iter : int, optional
+        Maximum algorithm iterations. Where ``max_inter <= n-m``.
         By default uses ``max_iter = n-m``.
     max_infeasible_iter : int, optional
         Maximum infeasible (regarding box constraints) iterations the
@@ -456,10 +452,10 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
     info : Dict
         Dictionary containing the following:
 
-            - niter : Number of iteractions.
+            - niter : Number of iterations.
             - stop_cond : Reason for algorithm termination:
                 1. Iteration limit was reached;
-                2. Reached trust-region boundarie;
+                2. Reached the trust-region boundary;
                 3. Negative curvature detected;
                 4. Tolerance was satisfied.
             - allvecs : List containing all intermediary vectors (optional).
@@ -470,8 +466,8 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
     -----
     Implementation of Algorithm 6.2 on [1]_.
 
-    In the abscence of sperical and box constraints, for sufficient
-    iteractions, the method returns a truly optimal result.
+    In the absence of spherical and box constraints, for sufficient
+    iterations, the method returns a truly optimal result.
     In the presence of those constraints the value returned is only
     a inexpensive approximation of the optimal value.
 
@@ -522,11 +518,11 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
         lb = np.full(n, -np.inf)
     if ub is None:
         ub = np.full(n, np.inf)
-    # Set maximum iteractions
+    # Set maximum iterations
     if max_iter is None:
         max_iter = n-m
     max_iter = min(max_iter, n-m)
-    # Set maximum infeasible iteractions
+    # Set maximum infeasible iterations
     if max_infeasible_iter is None:
         max_infeasible_iter = n-m
 
@@ -551,9 +547,8 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
                                      "problems.")
             else:
                 # Find intersection with constraints
-                _, alpha, intersect = box_sphere_intersections(x, p, lb, ub,
-                                                               trust_radius,
-                                                               entire_line=True)
+                _, alpha, intersect = box_sphere_intersections(
+                    x, p, lb, ub, trust_radius, entire_line=True)
 
                 if intersect:
                     x = x + alpha*p
@@ -575,8 +570,7 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
             stop_cond = 2
             hits_boundary = True
             break
-        # Check if ``x`` is inside box contraints
-        # and start counter if it is not.
+        # Check if ``x`` is inside the box and start counter if it is not.
         if inside_box_boundaries(x_next, lb, ub):
             counter = 0
         else:
@@ -629,10 +623,9 @@ def qp_subproblem(H, c, A, Z, Y, b, trust_radius,
     Solve problem:
 
         minimize 1/2 x.T H x + x.T c
-        subject to:
-        A x + b = r
-        ||x|| <= trust_radius
-        lb <= x <= ub
+        subject to: A x + b = r
+                    ||x|| <= trust_radius
+                    lb <= x <= ub
 
     For ``r`` chosen in such way the problem is feasible.
 
@@ -673,7 +666,7 @@ def qp_subproblem(H, c, A, Z, Y, b, trust_radius,
         Dictionary containing parameters for the CG procedure:
 
             - tol : Tolerance used to interrupt the algorithm.
-            - max_inter : Maximum algorithm iteractions. Where
+            - max_inter : Maximum algorithm iterations. Where
                 ``max_inter <= n-m``. By default uses
                 ``max_iter = n-m``.
             - max_infeasible_iter : int, optional
@@ -693,12 +686,12 @@ def qp_subproblem(H, c, A, Z, Y, b, trust_radius,
     x_t : array_like, shape (n,)
         Tangential step.
     info_cg : Dict
-        Dictionary containing the informations about the CG procedure:
+        Dictionary containing information about the CG procedure:
 
-            - niter : Number of CG iteractions.
+            - niter : Number of CG iterations.
             - stop_cond : Reason for CG algorithm termination:
                 1. Iteration limit was reached;
-                2. Reached trust-region boundarie;
+                2. Reached the trust-region boundary;
                 3. Negative curvature detected;
                 4. Tolerance was satisfied.
             - allvecs : List containing all intermediary vectors
@@ -724,14 +717,14 @@ def qp_subproblem(H, c, A, Z, Y, b, trust_radius,
                           box_factor*lb,
                           box_factor*ub)
 
-    # *** Tangencial Step ***
+    # *** Tangential Step ***
     # Solve the problem:
     # minimize 1/2 x_t.T H x_t + x_t.T (c + H x_n)
     # subject to:
     # A x_t = 0
     # ||x_t|| <= trust_radius - ||x_n||
     # lb - x_n <= x_t <= ub - x_n
-    # (x_t -> tangencial step, x_n -> normal step).
+    # (x_t -> tangential step, x_n -> normal step).
     c_t = H.dot(x_n) + c
     b_t = np.zeros(m)
     trust_radius_t = np.sqrt(trust_radius**2 - np.linalg.norm(x_n)**2)

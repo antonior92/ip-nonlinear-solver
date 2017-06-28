@@ -1,6 +1,4 @@
-"""
-Basic linear factorization needed by the solver.
-"""
+"""Basic linear factorizations needed by the solver."""
 
 from __future__ import division, print_function, absolute_import
 from scipy.sparse import (linalg, bmat, csc_matrix, eye, issparse)
@@ -16,7 +14,7 @@ __all__ = [
 
 
 def orthogonality(A, g):
-    """Measure of the orthogonality between a vector and the null space of matrix.
+    """Measure orthogonality between a vector and the null space of a matrix.
 
     Compute a measure of orthogonality between the null space
     of the (possibly sparse) matrix ``A`` and a given vector ``g``.
@@ -34,7 +32,7 @@ def orthogonality(A, g):
     """
     # Compute vector norms
     norm_g = np.linalg.norm(g)
-    # Compute frobenius norm of the matrix A
+    # Compute Frobenius norm of the matrix A
     if issparse(A):
         norm_A = linalg.norm(A, ord='fro')
     else:
@@ -46,7 +44,7 @@ def orthogonality(A, g):
 
     norm_A_g = np.linalg.norm(A.dot(g))
     # Orthogonality measure
-    orth = norm_A_g/(norm_A*norm_g)
+    orth = norm_A_g / (norm_A*norm_g)
     return orth
 
 
@@ -133,7 +131,7 @@ def projections(A, method=None, orth_tol=1e-12, max_refin=3):
         if method is None:
             method = "QRFactorization"
 
-        if method not in ("QRFactorization"):
+        if method != "QRFactorization":
             raise ValueError("Method not allowed for the given matrix.")
 
     if method == 'NormalEquation':
@@ -167,7 +165,7 @@ def projections(A, method=None, orth_tol=1e-12, max_refin=3):
             return A.T.dot(factor(x))
 
     elif method == 'AugmentedSystem':
-        # Form aumengted system
+        # Form augmented system
         K = csc_matrix(bmat([[eye(n), A.T], [A, None]]))
         # LU factorization
         # TODO: Use a symmetric indefinite factorization
@@ -244,7 +242,7 @@ def projections(A, method=None, orth_tol=1e-12, max_refin=3):
         # z = x - A.T inv(A A.T) A x
         def null_space(x):
             # v = P inv(R) Q.T x
-            aux1 = (Q.T).dot(x)
+            aux1 = Q.T.dot(x)
             aux2 = scipy.linalg.solve_triangular(R, aux1, lower=False)
             v = aux2[P]
             z = x - A.T.dot(v)
@@ -256,7 +254,7 @@ def projections(A, method=None, orth_tol=1e-12, max_refin=3):
                 if k >= max_refin:
                     break
                 # v = P inv(R) Q.T x
-                aux1 = (Q.T).dot(z)
+                aux1 = Q.T.dot(z)
                 aux2 = scipy.linalg.solve_triangular(R, aux1, lower=False)
                 v = aux2[P]
                 # z_next = z - A.T v
@@ -268,7 +266,7 @@ def projections(A, method=None, orth_tol=1e-12, max_refin=3):
         # z = inv(A A.T) A x
         def least_squares(x):
             # z = P inv(R) Q.T x
-            aux1 = (Q.T).dot(x)
+            aux1 = Q.T.dot(x)
             aux2 = scipy.linalg.solve_triangular(R, aux1, lower=False)
             z = aux2[P]
             return z
