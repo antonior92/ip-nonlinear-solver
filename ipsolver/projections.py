@@ -244,7 +244,8 @@ def projections(A, method=None, orth_tol=1e-12, max_refin=3):
             # v = P inv(R) Q.T x
             aux1 = Q.T.dot(x)
             aux2 = scipy.linalg.solve_triangular(R, aux1, lower=False)
-            v = aux2[P]
+            v = np.zeros(m)
+            v[P] = aux2
             z = x - A.T.dot(v)
 
             # Iterative refinement to improve roundoff
@@ -256,7 +257,7 @@ def projections(A, method=None, orth_tol=1e-12, max_refin=3):
                 # v = P inv(R) Q.T x
                 aux1 = Q.T.dot(z)
                 aux2 = scipy.linalg.solve_triangular(R, aux1, lower=False)
-                v = aux2[P]
+                v[P] = aux2
                 # z_next = z - A.T v
                 z = z - A.T.dot(v)
                 k += 1
@@ -268,14 +269,14 @@ def projections(A, method=None, orth_tol=1e-12, max_refin=3):
             # z = P inv(R) Q.T x
             aux1 = Q.T.dot(x)
             aux2 = scipy.linalg.solve_triangular(R, aux1, lower=False)
-            z = aux2[P]
+            z = np.zeros(m)
+            z[P] = aux2
             return z
 
         # z = A.T inv(A A.T) x
         def row_space(x):
             # z = Q inv(R.T) P.T x
-            aux1 = np.zeros(m)
-            aux1[P] = x
+            aux1 = x[P]
             aux2 = scipy.linalg.solve_triangular(R, aux1,
                                                  lower=False,
                                                  trans='T')
