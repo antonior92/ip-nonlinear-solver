@@ -141,8 +141,8 @@ def equality_constrained_sqp(fun, grad, hess, constr, jac,
     LARGE_REDUCTION_RATIO = 0.9
     INTERMEDIARY_REDUCTION_RATIO = 0.3
     SUFFICIENT_REDUCTION_RATIO = 1e-8  # Eta from reference [1]_, p.892.
-    TRUST_ENLARGEMENT_FACTOR_L = 7
-    TRUST_ENLARGEMENT_FACTOR_S = 2
+    TRUST_ENLARGEMENT_FACTOR_L = 7.0
+    TRUST_ENLARGEMENT_FACTOR_S = 2.0
     MAX_TRUST_REDUCTION = 0.5
     MIN_TRUST_REDUCTION = 0.1
     SOC_THRESHOLD = 0.1
@@ -280,9 +280,8 @@ def equality_constrained_sqp(fun, grad, hess, constr, jac,
     constr_violation = norm(b)
     info = {'niter': iteration, 'trust_radius': trust_radius,
             'v': v, 'fun': f,
-            'grad': c, 'hess': H,
-            'constr': b, 'jac': A,
-            'opt': opt,
+            'grad': c, 'constr': b,
+            'jac': A, 'opt': opt,
             'constr_violation': constr_violation}
     if return_all:
         info['allvecs'] = allvecs
