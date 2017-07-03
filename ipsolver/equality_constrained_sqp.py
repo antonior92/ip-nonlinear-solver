@@ -42,8 +42,8 @@ def equality_constrained_sqp(fun, grad, hess, constr, jac,
 
     Solve problem:
 
-        minimize f(x)
-        subject to: c(x) = 0
+        minimize fun(x)
+        subject to: constr(x) = 0
 
     using Byrd-Omojokun Trust-Region SQP method.
 
