@@ -7,6 +7,8 @@ from .equality_constrained_sqp import equality_constrained_sqp
 from numpy.linalg import norm
 from scipy.sparse.linalg import LinearOperator
 
+__all__ = ['BarrierSubproblem',
+           'ipsolver']
 
 class BarrierSubproblem:
     """
@@ -35,16 +37,16 @@ class BarrierSubproblem:
         self.n_ineq = n_ineq
 
     def _get_slack(self, z):
-        return z[self.n_vars:self.n+self.n_eq]
+        return z[self.n_vars:self.n_vars+self.n_eq]
 
     def _get_variables(self, z):
         return z[:self.n_vars]
 
     def _get_eq_lagr_mult(self, v):
-        return v[:n_eq]
+        return v[:self.n_eq]
 
     def _get_ineq_lagr_mult(self, v):
-        return v[n_eq:n_eq+n_ineq]
+        return v[self.n_eq:self.n_eq+self.n_ineq]
 
     def barrier_fun(self, z):
         """Returns barrier function at given funstion.
@@ -75,7 +77,7 @@ class BarrierSubproblem:
             scaling = [ones(n_vars), s]
         """
         s = self._get_slack(z)
-        return np.hstack((np.ones(n), s))
+        return np.hstack((np.ones(self.n_vars), s))
 
     def barrier_grad(self, z):
         """Returns scaled gradient (for the barrier problem).
@@ -87,7 +89,8 @@ class BarrierSubproblem:
                            [[ -barrier_parameter*ones(n_vars) ]]
         """
         x = self._get_variables(z)
-        return np.hstack((self._grad(x), -barrier_parameter*np.ones(m_in)))
+        return np.hstack((self._grad(x),
+                          -self.barrier_parameter*np.ones(self.n_ineq)))
 
     def jac(self, z):
         """Returns scaled Jacobian.
@@ -136,7 +139,9 @@ class BarrierSubproblem:
             vec_x = self._get_variables(vec)
             vec_s = self._get_slack(vec)
             return np.hstack((Hx.dot(vec_x), Hs*vec_s))
-        return LinearOperator((n_vars+n_ineq, n_vars+n_ineq), matvec)
+        return LinearOperator((self.n_vars+self.n_ineq,
+                               self.n_vars+self.n_ineq),
+                              matvec)
 
     def stop_criteria(self, z, v, fun, grad, constr, jac, iteration,
                       trust_radius):
@@ -152,6 +157,14 @@ class BarrierSubproblem:
             return True
         else:
             return False
+
+
+def default_stop_criteria(info):
+    if (info["opt"] < 1e-8 and info["constr_violation"] < 1e-8) \
+       or info["niter"] > 1000:
+        return True
+    else:
+        return False
 
 
 def ipsolver(fun, grad, hess,
@@ -201,8 +214,7 @@ def ipsolver(fun, grad, hess,
     trust_radius = initial_trust_radius
     v0 = None
     iteration = 0
-
-    while not stop_criteria():
+    while True:
         # Define barrier subproblem
         subprob = BarrierSubproblem(
             fun, grad, hess, c_eq, c_eq_jac, c_ineq, c_ineq_jac,
@@ -236,6 +248,10 @@ def ipsolver(fun, grad, hess,
         # to update this parameters.
         barrier_parameter = BARRIER_DECAY_RATIO*barrier_parameter
         tolerance = BARRIER_DECAY_RATIO*tolerance
+        # Update info
+        info['niter'] = iteration
 
-    info['niter'] = iteration
+        if stop_criteria(info):
+            break
+
     return x, info

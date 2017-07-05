@@ -17,13 +17,9 @@ def default_scaling(x):
     return spc.eye(n)
 
 
-def default_stop_criteria(x, v, fun, grad, constr, jac, iteration,
-                          trust_radius):
-    opt = norm(grad + jac.T.dot(v))
-    c_violation = norm(constr)
-
-    if (opt < 1e-8 and c_violation < 1e-8) or iteration > 1000 \
-       or trust_radius < 1e-12:
+def default_stop_criteria(info):
+    if (info["opt"] < 1e-8 and info["constr_violation"] < 1e-8) \
+       or info["niter"] > 1000 or info["trust_radius"] < 1e-12:
         return True
     else:
         return False
@@ -77,8 +73,7 @@ def equality_constrained_sqp(fun, grad, hess, constr, jac,
         Trust region upper bound.
     stop_criteria: callable
         Functions that returns True when stop criteria is fulfilled:
-            stop_criteria(x, v, fun, grad, constr, jac,
-                          iteration, trust_radius)
+            stop_criteria(info)
     initial_penalty : float
         Initial penalty for merit function.
     scaling : callable
@@ -173,13 +168,21 @@ def equality_constrained_sqp(fun, grad, hess, constr, jac,
         v = -LS.dot(c)
     else:
         v = v0
+    # Construct info dictionary
+    opt = norm(c + A.T.dot(v))
+    constr_violation = norm(b)
+    info = {'niter': iteration, 'trust_radius': trust_radius,
+            'v': v, 'fun': f,
+            'grad': c, 'constr': b,
+            'jac': A, 'opt': opt,
+            'constr_violation': constr_violation}
     # Store values
     if return_all:
         allvecs = [np.copy(x)]
         allmult = [np.copy(v)]
 
     compute_hess = True
-    while not stop_criteria(x, v, f, c, b, A, iteration, trust_radius):
+    while not stop_criteria(info):
         # Compute Lagrangian Hessian
         if compute_hess:
             H = hess(x, v)
@@ -269,20 +272,26 @@ def equality_constrained_sqp(fun, grad, hess, constr, jac,
             v = -LS.dot(c)
             # Set Flag
             compute_hess = True
+            # Otimality values
+            opt = norm(c + A.T.dot(v))
+            constr_violation = norm(b)
+            # Store info
+            info["v"] = v
+            info["fun"] = f
+            info["grad"] = c
+            info["constr"] = b
+            info["jac"] = A
+            info["opt"] = opt
+            info["constr_violation"] = constr_violation
         else:
             compute_hess = False
         # Store values
+        info["niter"] = iteration
+        info["trust_radius"] = trust_radius
         if return_all:
             allvecs.append(np.copy(x))
             allmult.append(np.copy(v))
 
-    opt = norm(c + A.T.dot(v))
-    constr_violation = norm(b)
-    info = {'niter': iteration, 'trust_radius': trust_radius,
-            'v': v, 'fun': f,
-            'grad': c, 'constr': b,
-            'jac': A, 'opt': opt,
-            'constr_violation': constr_violation}
     if return_all:
         info['allvecs'] = allvecs
         info['allmult'] = allmult
