@@ -3,7 +3,7 @@
 from __future__ import division, print_function, absolute_import
 import scipy.sparse as spc
 from .projections import projections
-from .qp_subproblem import qp_subproblem
+from .qp_subproblem import qp_subproblem, inside_box_boundaries
 import numpy as np
 from numpy.linalg import norm
 
@@ -160,6 +160,7 @@ def equality_constrained_sqp(fun, grad, hess, constr, jac,
     c = grad(x)
     b = constr(x)
     A = jac(x)
+    S = scaling(x)
     # Get projections
     Z, LS, Y = projections(A)
     # Set initial lagrange multipliers
@@ -167,7 +168,7 @@ def equality_constrained_sqp(fun, grad, hess, constr, jac,
         # Compute least-square lagrange multipliers
         v = -LS.dot(c)
     else:
-        v = v0
+        v = np.copy(v0)
     # Construct info dictionary
     opt = norm(c + A.T.dot(v))
     constr_violation = norm(b)
@@ -211,8 +212,9 @@ def equality_constrained_sqp(fun, grad, hess, constr, jac,
         # Compute merit function at current point
         merit_function = f + penalty*norm(b)
         # Evaluate function and constraints at trial point
-        f_next = fun(x + d)
-        b_next = constr(x + d)
+        x_next = x + S.dot(d)
+        f_next = fun(x_next)
+        b_next = constr(x_next)
         # Compute merit function at trial point
         merit_function_next = f_next + penalty*norm(b_next)
         # Compute actual reduction according to formula (3.54),
@@ -222,19 +224,21 @@ def equality_constrained_sqp(fun, grad, hess, constr, jac,
         reduction_ratio = actual_reduction / predicted_reduction
 
         # Second order correction (SOC), reference [1]_, p.892.
+        # TODO: Take a look here for S not equal to the identity!!
         if reduction_ratio < SUFFICIENT_REDUCTION_RATIO and \
            norm(dn) <= SOC_THRESHOLD * norm(dt):
             # Compute second order correction
             y = -Y.dot(b_next)
             # Recompute ared
-            f_soc = fun(x + d + y)
-            b_soc = constr(x + d + y)
+            x_soc = x + S.dot(d) + y
+            f_soc = fun(x_soc)
+            b_soc = constr(x_soc)
             merit_function_soc = f_soc + penalty*norm(b_soc)
             actual_reduction_soc = merit_function - merit_function_soc
             # Recompute reduction ratio
             reduction_ratio_soc = actual_reduction_soc / predicted_reduction
             if reduction_ratio_soc >= SUFFICIENT_REDUCTION_RATIO:
-                d = d + y
+                x_next = x_soc
                 f_next = f_soc
                 b_next = b_soc
                 reduction_ratio = reduction_ratio_soc
@@ -260,12 +264,12 @@ def equality_constrained_sqp(fun, grad, hess, constr, jac,
         # Update iteration
         iteration += 1
         if reduction_ratio >= SUFFICIENT_REDUCTION_RATIO:
-            S = scaling(x)
-            x += S.dot(d)
+            x = x_next
             f = f_next
             c = grad(x)
             b = b_next
             A = jac(x)
+            S = scaling(x)
             # Get projections
             Z, LS, Y = projections(A)
             # Compute least-square lagrange multipliers

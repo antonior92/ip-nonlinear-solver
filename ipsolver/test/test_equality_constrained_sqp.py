@@ -21,7 +21,7 @@ class TestEqualityConstrainedSQPSolver(TestCase):
 
         for p in list_of_problems:
             x, info = equality_constrained_sqp(
-                p.fun, p.grad, p.lagr_hess, p.ceq, p.ceq_jac, p.x0,
+                p.fun, p.grad, p.lagr_hess, p.c_eq, p.c_eq_jac, p.x0,
                 p.v0, initial_trust_radius=1, initial_penalty=1,
                 return_all=True)
             assert_array_less(info["opt"], 1e-5)

@@ -6,6 +6,7 @@ from scipy.sparse import csc_matrix
 
 __all__ = [
     'ProblemMaratos',
+    'ProblemSimpleIneqConstr',
     'ProblemELEC'
 ]
 
@@ -15,13 +16,13 @@ class ProblemMaratos:
 
     The following optimization problem:
         minimize 2*(x[0]**2 + x[1]**2 - 1) - x[0]
-        Subject to: x[0]**2 + x[1]**2 - 1 = 0 
+        Subject to: x[0]**2 + x[1]**2 - 1 = 0
     """
 
     def __init__(self, degrees=60):
         rads = degrees/180*np.pi
         self.x0 = [np.cos(rads), np.sin(rads)]
-        self.v0 = 0
+        self.v0 = [0]
         self.x_opt = np.array([1.0, 0.0])
         self.f_opt = -1.0
 
@@ -34,17 +35,64 @@ class ProblemMaratos:
     def hess(self, x):
         return 4*np.eye(2)
 
-    def ceq(self, x):
+    def c_eq(self, x):
         return np.array([x[0]**2 + x[1]**2 - 1])
 
-    def ceq_jac(self, x):
+    def c_eq_jac(self, x):
         return np.array([[4*x[0], 4*x[1]]])
 
-    def ceq_hess(self, x):
-        return 2*np.eye(2)
+    def c_eq_hess(self, x, v):
+        return 2*v[0]*np.eye(2)
 
     def lagr_hess(self, x, v):
-        return self.hess(x) + v*self.ceq_hess(x)
+        return self.hess(x) + self.c_eq_hess(x, v)
+
+
+class ProblemSimpleIneqConstr:
+    """Problem 15.1 from Nocedal and Wright
+
+    The following optimization problem:
+        minimize 1/2*(x[0] - 2)**2 + 1/2*(x[1] - 1/2)**2
+        Subject to: -1/(x[0] + 1) + x[1] + 1/4 <= 0
+                                        - x[0] <= 0
+                                        - x[1] <= 0
+    """
+
+    def __init__(self):
+        self.x0 = [0, 0]
+        self.v0 = [0]
+        self.x_opt = np.array([1.952823,  0.088659])
+        self.f_opt = 0.08571
+
+    def fun(self, x):
+        return 1/2*(x[0] - 2)**2 + 1/2*(x[1] - 1/2)**2
+
+    def grad(self, x):
+        return np.array([x[0] - 2, x[1] - 1/2])
+
+    def hess(self, x):
+        return np.eye(2)
+
+    def c_ineq(self, x):
+        return np.array([-1/(x[0] + 1) + x[1] + 1/4, -x[0], -x[1]])
+
+    def c_ineq_jac(self, x):
+        return np.array([[1/(x[0] + 1)**2, 1],
+                         [-1, 0],
+                         [0, -1]])
+
+    def c_ineq_hess(self, x, v):
+        return 2*v[0]*np.array([[1/(x[0] + 1)**3, 0],
+                                [0, 0]])
+
+    def c_eq(self, x):
+        return np.empty([0])
+
+    def c_eq_jac(self, x):
+        return np.empty([0, 2])
+
+    def lagr_hess(self, x, v):
+        return self.hess(x) + self.c_ineq_hess(x, v)
 
 
 class ProblemELEC:
@@ -135,11 +183,11 @@ class ProblemELEC:
 
         return H
 
-    def ceq(self, x):
+    def c_eq(self, x):
         x_coord, y_coord, z_coord = self._get_cordinates(x)
         return x_coord**2 + y_coord**2 + z_coord**2 - 1
 
-    def ceq_jac(self, x):
+    def c_eq_jac(self, x):
         x_coord, y_coord, z_coord = self._get_cordinates(x)
         Jx = 2 * np.diag(x_coord)
         Jy = 2 * np.diag(y_coord)
@@ -147,9 +195,9 @@ class ProblemELEC:
 
         return csc_matrix(np.hstack((Jx, Jy, Jz)))
 
-    def ceq_hess(self, x, v):
+    def c_eq_hess(self, x, v):
         D = 2 * np.diag(v)
         return block_diag(D, D, D)
 
     def lagr_hess(self, x, v):
-        return self.hess(x) + self.ceq_hess(x, v)
+        return self.hess(x) + self.c_eq_hess(x, v)
