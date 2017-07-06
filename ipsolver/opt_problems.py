@@ -1,4 +1,6 @@
 """Constrained optimization problems in Native Python"""
+
+from __future__ import division, print_function, absolute_import
 import numpy as np
 from scipy.linalg import block_diag
 from scipy.sparse import csc_matrix
