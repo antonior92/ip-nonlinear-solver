@@ -208,8 +208,9 @@ class BarrierSubproblem:
         The criteria here proposed is similar to formula (2.3)
         from [1]_, p.879.
         """
-        if (info["opt"] < self.tolerance and info["constr_violation"] < self.tolerance) \
-           or info["niter"] > self.max_iter:
+        if (info["opt"] < self.tolerance
+            and info["constr_violation"] < self.tolerance) \
+           or info["niter"] > self.max_substep_iter:
             return True
         else:
             return False
@@ -225,7 +226,7 @@ def default_stop_criteria(info):
 
 def ipsolver(fun, grad, hess, constr, jac,
              constr_eq, jac_eq, lb, ub,
-             A, b, A_eq, b_eq, x0, v0=None,
+             A, b, A_eq, b_eq, x0,
              stop_criteria=default_stop_criteria,
              initial_barrier_parameter=0.1,
              initial_tolerance=0.1,
@@ -242,6 +243,88 @@ def ipsolver(fun, grad, hess, constr, jac,
                           A x <= b
                         A_eq x = b
                          lb <= x <= ub
+
+    using trust-region interior point method described in [1]_.
+
+    Parameters
+    ----------
+    fun : callable
+        Objective function:
+            fun(x) -> float
+    grad : callable
+        Gradient vector:
+            grad(x) -> array_like, shape (n,)
+    hess : callable
+        Lagrangian hessian:
+            hess(x, v_eq, v_ineq) -> H
+
+            - ``x``: array_like, shape (n,)
+                Evaluation point.
+            - ``v_eq``: array_like, shape (n_eq,)
+                Lagrange multipliers for equality constraints.
+            - ``v_ineq``: array_like, shape (n_ineq,)
+                Lagrange multipliers for inequality constraints.
+            - ``H``: LinearOperator (or sparse matrix or ndarray), shape (n, n)
+                Lagrangian Hessian.
+
+    constr : callable
+        Inequality constraint:
+            constr(x) -> array_like, shape (n_ineq,)
+    jac : callable
+        Inequality constraints Jacobian:
+            jac(x) -> sparse matrix (or ndarray), shape (n_ineq, n)
+    constr_eq : callable
+        Inequality constraint:
+            constr(x) -> array_like, shape (n_eq,)
+    jac_eq : callable
+        Inequality constraints Jacobian:
+            jac(x) -> sparse matrix (or ndarray), shape (n_eq, n)
+    lb : array_like, shape (n,)
+        Lower bound.
+    ub : array_like, shape (n,)
+        Upper bound.
+    A : sparse matrix (or ndarray), shape (n_lin_ineq, n)
+        Jacobian of linear inequality constraint.
+    b : array_like, shape (n_lin_ineq, n)
+        Right-hand side of linear inequality constraint.
+    A_eq : sparse matrix (or ndarray), shape (n_lin_eq, n)
+        Jacobian of linear equality constraint.
+    b_eq : array_like, shape (n_lin_eq, n)
+        Right-hand side of linear equality constraint.
+    x0 : array_like, shape (n,)
+        Starting point.
+    stop_criteria: callable
+        Functions that returns True when stop criteria is fulfilled:
+            stop_criteria(info)
+    initial_tolerance: float
+        Initial subproblem tolerance. By defaut uses 0.1.
+    initial_barrier_parameter: float
+        Initial barrier parameter. By defaut uses 0.1.
+    initial_trust_radius: float
+        Initial trust-region radius. By defaut uses 1.
+    initial_penalty : float
+        Initial penalty for merit function.
+    max_substep_iter : int
+        Maximum iterations per substep.
+
+    Returns
+    -------
+    x : array_like, shape (n,)
+        Solution to the optimization problem.
+    info :
+        Dictionary containing the following:
+
+            - niter : Number of iterations.
+            - trust_radius : Trust radius at last iteration.
+            - v : Lagrange multipliers at the solution , shape (m,).
+            - fun : Function evaluation at the solution.
+            - grad : Gradient evaluation at the solution.
+            - hess : Lagrangian Hessian at the solution.
+            - constr : Constraints at the solution.
+            - jac : Constraints jacobian at the solution.
+            - opt : Optimality is the norm of gradient of the Lagrangian
+              ``||grad L(x, v)||``, where ``grad L(x, v) = g(x) + A(x).T v``.
+            - c_violation : Norm of the constraint violation ``||c(x)||``.
 
     References
     ----------
@@ -266,7 +349,7 @@ def ipsolver(fun, grad, hess, constr, jac,
     barrier_parameter = initial_barrier_parameter
     tolerance = initial_tolerance
     trust_radius = initial_trust_radius
-    v = v0
+    v = None
     iteration = 0
     # Define barrier subproblem
     subprob = BarrierSubproblem(
