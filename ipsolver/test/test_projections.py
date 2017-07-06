@@ -124,10 +124,10 @@ class TestProjections(TestCase):
         Z_sparse, LS_sparse, Y_sparse = projections(A_sparse)
         for k in range(1):
             z = np.random.normal(size=(9,))
-            print(np.max(Z.dot(z) - Z_sparse.dot(z)))
-            print(np.max(LS.dot(z) - LS_sparse.dot(z)))
+            assert_array_almost_equal(Z.dot(z), Z_sparse.dot(z))
+            assert_array_almost_equal(LS.dot(z), LS_sparse.dot(z))
             x = np.random.normal(size=(3,))
-            print(np.max(Y.dot(x) - Y_sparse.dot(x)))
+            assert_array_almost_equal(Y.dot(x), Y_sparse.dot(x))
 
     def test_iterative_refinements_dense(self):
         A = np.array([[1, 2, 3, 4, 0, 5, 0, 7],
