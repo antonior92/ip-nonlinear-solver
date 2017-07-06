@@ -35,17 +35,17 @@ class ProblemMaratos:
     def hess(self, x):
         return 4*np.eye(2)
 
-    def c_eq(self, x):
+    def constr_eq(self, x):
         return np.array([x[0]**2 + x[1]**2 - 1])
 
-    def c_eq_jac(self, x):
+    def jac_eq(self, x):
         return np.array([[4*x[0], 4*x[1]]])
 
-    def c_eq_hess(self, x, v):
+    def hess_eq(self, x, v):
         return 2*v[0]*np.eye(2)
 
-    def lagr_hess(self, x, v):
-        return self.hess(x) + self.c_eq_hess(x, v)
+    def lagr_hess(self, x, v_eq, v_ineq=None):
+        return self.hess(x) + self.hess_eq(x, v_eq)
 
 
 class ProblemSimpleIneqConstr:
@@ -73,26 +73,20 @@ class ProblemSimpleIneqConstr:
     def hess(self, x):
         return np.eye(2)
 
-    def c_ineq(self, x):
+    def constr(self, x):
         return np.array([-1/(x[0] + 1) + x[1] + 1/4, -x[0], -x[1]])
 
-    def c_ineq_jac(self, x):
+    def jac(self, x):
         return np.array([[1/(x[0] + 1)**2, 1],
                          [-1, 0],
                          [0, -1]])
 
-    def c_ineq_hess(self, x, v):
+    def hess_ineq(self, x, v):
         return 2*v[0]*np.array([[1/(x[0] + 1)**3, 0],
                                 [0, 0]])
 
-    def c_eq(self, x):
-        return np.empty([0])
-
-    def c_eq_jac(self, x):
-        return np.empty([0, 2])
-
-    def lagr_hess(self, x, v):
-        return self.hess(x) + self.c_ineq_hess(x, v)
+    def lagr_hess(self, x, v_eq, v_ineq):
+        return self.hess(x) + self.hess_ineq(x, v_ineq)
 
 
 class ProblemELEC:
@@ -183,11 +177,11 @@ class ProblemELEC:
 
         return H
 
-    def c_eq(self, x):
+    def constr_eq(self, x):
         x_coord, y_coord, z_coord = self._get_cordinates(x)
         return x_coord**2 + y_coord**2 + z_coord**2 - 1
 
-    def c_eq_jac(self, x):
+    def jac_eq(self, x):
         x_coord, y_coord, z_coord = self._get_cordinates(x)
         Jx = 2 * np.diag(x_coord)
         Jy = 2 * np.diag(y_coord)
@@ -195,9 +189,9 @@ class ProblemELEC:
 
         return csc_matrix(np.hstack((Jx, Jy, Jz)))
 
-    def c_eq_hess(self, x, v):
+    def hess_eq(self, x, v):
         D = 2 * np.diag(v)
         return block_diag(D, D, D)
 
-    def lagr_hess(self, x, v):
-        return self.hess(x) + self.c_eq_hess(x, v)
+    def lagr_hess(self, x, v_eq, v_ineq=None):
+        return self.hess(x) + self.hess_eq(x, v_eq)

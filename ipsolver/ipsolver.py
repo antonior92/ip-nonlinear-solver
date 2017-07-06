@@ -27,51 +27,52 @@ class BarrierSubproblem:
     def __init__(self, x0, fun, grad, hess, constr, jac,
                  constr_eq, jac_eq, lb, ub, A, b, A_eq, b_eq,
                  barrier_parameter, tolerance, max_substep_iter):
+        # Compute number of variables
+        self.n_vars, = np.shape(x0)
+
+        # Define empty default functions
+        def empty_constr(x):
+            return np.empty((0,))
+
+        def empty_jac(x):
+            return np.empty((0, self.n_vars))
 
         # Store parameters
         self.x0 = x0
         self.fun = fun
         self.grad = grad
         self.hess = hess
-        self.constr = constr
-        self.jac = jac
-        self.constr_eq = constr_eq
-        self.jac_eq = jac_eq
-        self.A = A
-        self.b = b
-        self.A_eq = A_eq
-        self.b_eq = b_eq
+        self.constr = constr if constr is not None else empty_constr
+        self.jac = jac if jac is not None else empty_jac
+        self.constr_eq = constr_eq if constr_eq is not None else empty_constr
+        self.jac_eq = jac_eq if jac_eq is not None else empty_jac
+        self.A = A if A is not None else np.empty((0, self.n_vars))
+        self.b = b if b is not None else np.empty((0,))
+        self.A_eq = A_eq if A_eq is not None else np.empty((0, self.n_vars))
+        self.b_eq = b_eq if b_eq is not None else np.empty((0,))
+        self.lb = lb if lb is not None else np.full((self.n_vars,), -np.inf)
+        self.ub = ub if ub is not None else np.full((self.n_vars,), np.inf)
         self.barrier_parameter = barrier_parameter
         self.tolerance = tolerance
         self.max_substep_iter = max_substep_iter
 
         # Compute number of finite lower and upper bounds
-        self.ind_lb = np.invert(np.isinf(lb))
-        self.n_lb = np.sum(self.ind_lb)
-        self.ind_ub = np.invert(np.isinf(ub))
-        self.n_ub = np.sum(self.ind_ub)
-        # Compute number of variables
-        self.n_vars, = np.shape(x0)
+        self.ind_lb = np.invert(np.isinf(self.lb))
+        self.n_lb = np.int(np.sum(self.ind_lb))
+        self.ind_ub = np.invert(np.isinf(self.ub))
+        self.n_ub = np.int(np.sum(self.ind_ub))
         # Nonlinear constraints
         # TODO: Avoid this unecessary call to the constraints.
-        self.n_eq, = np.shape(constr_eq(x0))
-        self.n_ineq, = np.shape(constr(x0))
+        self.n_eq, = np.shape(self.constr_eq(x0))
+        self.n_ineq, = np.shape(self.constr(x0))
         # Linear constraints
-        self.n_lin_eq, = np.shape(b_eq)
-        self.n_lin_ineq, = np.shape(b)
+        self.n_lin_eq, = np.shape(self.b_eq)
+        self.n_lin_ineq, = np.shape(self.b)
         # Number of slack variables
-        self.nslack = (self.n_lb + self.n_ub +
-                       self.n_ineq + self.n_lin_ineq)
+        self.n_slack = (self.n_lb + self.n_ub +
+                        self.n_ineq + self.n_lin_ineq)
 
-    def update(self, fun, grad, hess, constr, jac, constr_eq,
-               jac_eq, barrier_parameter, tolerance):
-        self.fun = fun
-        self.grad = grad
-        self.hess = hess
-        self.constr = constr
-        self.jac = jac
-        self.constr_eq = constr_eq
-        self.jac_eq = jac_eq
+    def update(self, barrier_parameter, tolerance):
         self.barrier_parameter = barrier_parameter
         self.tolerance = tolerance
 
@@ -163,13 +164,15 @@ class BarrierSubproblem:
         x = self.get_variables(z)
         s = self.get_slack(z)
         S = spc.diags((s,), (0,))
-        I = spc.eye(self.nvars).tocsc()
+        I = spc.eye(self.n_vars).tocsc()
+        I_ub = I[self.ind_ub, :]
+        I_lb = I[self.ind_lb, :]
 
-        aux = spc.bmat([[self.jac(x)],
-                        [self.A]
-                        [I[self.ind_ub, :]],
-                        [-I[self.ind_lb, :]]])
-        return spc.bmat([[self.jac_eq, None],
+        aux = spc.vstack([self.jac(x),
+                          self.A,
+                          I_ub,
+                          -I_lb])
+        return spc.bmat([[self.jac_eq(x), None],
                          [self.A_eq, None],
                          [aux, S]], "csc")
 
@@ -239,9 +242,9 @@ def default_stop_criteria(info):
         return False
 
 
-def ipsolver(fun, grad, hess, constr, jac,
-             constr_eq, jac_eq, lb, ub,
-             A, b, A_eq, b_eq, x0,
+def ipsolver(fun, grad, hess, x0, constr=None, jac=None,
+             constr_eq=None, jac_eq=None, A=None, b=None,
+             A_eq=None, b_eq=None, lb=None, ub=None,
              stop_criteria=default_stop_criteria,
              initial_barrier_parameter=0.1,
              initial_tolerance=0.1,
@@ -379,15 +382,14 @@ def ipsolver(fun, grad, hess, constr, jac,
     trust_ub = np.full(subprob.n_vars+subprob.n_slack, np.inf)
     while True:
         # Update Barrier Problem
-        subprob.update(fun, grad, hess, constr, jac, constr_eq, jac_eq,
-                       barrier_parameter, tolerance)
+        subprob.update(barrier_parameter, tolerance)
         # Solve SQP subproblem
         z, info = equality_constrained_sqp(
             subprob.function,
             subprob.gradient,
             subprob.lagrangian_hessian,
-            subprob.constr,
-            subprob.jac,
+            subprob.constraints,
+            subprob.jacobian,
             z, v,
             trust_radius,
             trust_lb,

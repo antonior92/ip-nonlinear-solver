@@ -16,8 +16,7 @@ class TestIPSolver(TestCase):
 
         for p in list_of_problems:
             x, info = ipsolver(
-                p.fun, p.grad, p.lagr_hess, p.c_ineq, p.c_ineq_jac,
-                p.c_eq, p.c_eq_jac, p.x0)
+                p.fun, p.grad, p.lagr_hess, p.x0, p.constr, p.jac)
             assert_array_less(info["opt"], 1e-8)
             assert_array_less(info["constr_violation"], 1e-8)
             if p.x_opt is not None:
