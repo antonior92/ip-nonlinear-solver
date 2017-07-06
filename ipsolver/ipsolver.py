@@ -46,8 +46,10 @@ class BarrierSubproblem:
         self.max_substep_iter = max_substep_iter
 
         # Compute number of finite lower and upper bounds
-        self.n_lb = np.sum(np.invert(np.isinf(lb)))
-        self.n_ub = np.sum(np.invert(np.isinf(ub)))
+        self.ind_lb = np.invert(np.isinf(lb))
+        self.n_lb = np.sum(self.ind_lb)
+        self.ind_ub = np.invert(np.isinf(ub))
+        self.n_ub = np.sum(self.ind_ub)
         # Compute number of variables
         self.n_vars, = np.shape(x0)
         # Nonlinear constraints
@@ -61,6 +63,18 @@ class BarrierSubproblem:
         self.nslack = (self.n_lb + self.n_ub +
                        self.n_ineq + self.n_lin_ineq)
 
+    def update(self, fun, grad, hess, constr, jac, constr_eq,
+               jac_eq, barrier_parameter, tolerance):
+        self.fun = fun
+        self.grad = grad
+        self.hess = hess
+        self.constr = constr
+        self.jac = jac
+        self.constr_eq = constr_eq
+        self.jac_eq = jac_eq
+        self.barrier_parameter = barrier_parameter
+        self.tolerance = tolerance
+
     def get_slack(self, z):
         return z[self.n_vars:self.n_vars+self.n_slack]
 
@@ -73,36 +87,37 @@ class BarrierSubproblem:
     def z0(self):
         return np.hstack((self.x0, self.s0()))
 
-    def barrier_fun(self, z):
+    def function(self, z):
         """Returns barrier function at given point.
 
         For z = [x, s], returns barrier function:
-            barrier_fun(z) = fun(x) - barrier_parameter*sum(log(s))
+            function(z) = fun(x) - barrier_parameter*sum(log(s))
         """
         x = self.get_variables(z)
         s = self.get_slack(z)
         return self.fun(x) - self.barrier_parameter*np.sum(np.log(s))
 
-    def constr_slack(self, z):
+    def constraints(self, z):
         """Returns barrier problem constraints at given points.
 
         For z = [x, s], returns the constraints:
 
-            constr_slack(z) =[[   constr_eq(x) ]]
-                             [[ A_eq x + b     ]]
-                             [[  constr(x) + s ]]
-                             [[    A x + b + s ]]
-                             [[     x - ub + s ]]  (for ub != inf)
-                             [[     lb - x + s ]]  (for lb != -inf)
+            constraints(z) = [[   constr_eq(x)   ]]
+                             [[    A_eq x + b    ]]
+                             [[[ constr(x) ]     ]]
+                             [[[   A x + b ]     ]]
+                             [[[    x - ub ] + s ]]  (for ub != inf)
+                             [[[    lb - x ]     ]]  (for lb != -inf)
         """
         x = self.get_variables(z)
         s = self.get_slack(z)
+        aux = np.hstack((self.constr(x),
+                         self.A.dot(x) + self.b,
+                         x[self.ind_ub] - self.ub[self.ind_ub],
+                         self.lb[self.ind_lb] - x[self.ind_lb]))
         return np.hstack((self.constr_eq(x),
                           self.A_eq.dot(x) + self.b_eq,
-                          self.constr(x) + s,
-                          self.A.dot(x) + self.b,
-                          x - self.ub + s,
-                          self.lb - x + s))
+                          aux + s))
 
     def scaling(self, z):
         """Returns scaling vector.
@@ -120,45 +135,45 @@ class BarrierSubproblem:
                                self.n_vars+self.n_slack),
                               matvec)
 
-    def barrier_grad(self, z):
-        """Returns scaled gradient (for the barrier problem).
+    def gradient(self, z):
+        """Returns scaled gradient.
 
-        The result of scaling the gradient
+        Barrier  scalled gradient
         of the barrier problem by the previously
         defined scaling factor:
-            barrier_grad = [[             grad(x)             ]]
-                           [[ -barrier_parameter*ones(n_ineq) ]]
+            gradient = [[             grad(x)             ]]
+                       [[ -barrier_parameter*ones(n_ineq) ]]
         """
         x = self.get_variables(z)
         return np.hstack((self.grad(x),
                           -self.barrier_parameter*np.ones(self.n_slack)))
 
-    def jac(self, z):
+    def jacobian(self, z):
         """Returns scaled Jacobian.
 
-        The result of scaling the Jacobian
+        Barrier scalled jacobian
         by the previously defined scaling factor:
-            barrier_grad = [[  jac_eq(x)     0  ]]
-                           [[  A_eq(x)       0  ]]
-                           [[[ jac(x) ]         ]]
-                           [[[   A    ]         ]]  
-                           [[[   I    ]      S  ]]
-                           [[[  -I    ]         ]]                
+            jacobian = [[  jac_eq(x)     0  ]]
+                       [[  A_eq(x)       0  ]]
+                       [[[ jac(x) ]         ]]
+                       [[[   A    ]         ]]
+                       [[[   I    ]      S  ]]
+                       [[[  -I    ]         ]]
         """
         x = self.get_variables(z)
         s = self.get_slack(z)
         S = spc.diags((s,), (0,))
-        I = spc.eye(self.nvars)
+        I = spc.eye(self.nvars).tocsc()
 
         aux = spc.bmat([[self.jac(x)],
                         [self.A]
-                        [I],
-                        [-I]])
+                        [I[self.ind_ub, :]],
+                        [-I[self.ind_lb, :]]])
         return spc.bmat([[self.jac_eq, None],
                          [self.A_eq, None],
                          [aux, S]], "csc")
 
-    def lagr_hess_x(self, z, v):
+    def lagrangian_hessian_x(self, z, v):
         """Returns Lagrangian Hessian (in relation to variables ``x``)"""
         x = self.get_variables(z)
         # Get lagrange multipliers relatated to nonlinear equality constraints
@@ -168,15 +183,15 @@ class BarrierSubproblem:
         hess = self.hess
         return hess(x, v_eq, v_ineq)
 
-    def lagr_hess_s(self, z, v):
+    def lagrangian_hessian_s(self, z, v):
         """Returns Lagrangian Hessian (in relation to slack variables ``s``)"""
         s = self.get_slack(z)
         # Using the primal formulation:
-        #     lagr_hess_s = diag(1/s**2).
+        #     lagrangian_hessian_s = diag(1/s**2).
         # Reference [1]_ p. 882, formula (3.1)
         primal = self.barrier_parameter/(s*s)
         # Using the primal-dual formulation
-        #     lagr_hess_s = diag(v/s)
+        #     lagrangian_hessian_s = diag(v/s)
         # Reference [1]_ p. 883, formula (3.11)
         primal_dual = v[-self.n_slack:]/s
         # Uses the primal-dual formulation for
@@ -184,12 +199,12 @@ class BarrierSubproblem:
         # formulation for the remaining ones.
         return np.where(v[-self.n_slack:] > 0, primal_dual, primal)
 
-    def lagr_hess(self, z, v):
+    def lagrangian_hessian(self, z, v):
         """Returns scaled Lagrangian Hessian"""
         s = self.get_slack(z)
         # Compute Hessian in relation to x and s
-        Hx = self.lagr_hess_x(z, v)
-        Hs = self.lagr_hess_s(z, v)*s*s
+        Hx = self.lagrangian_hessian_x(z, v)
+        Hs = self.lagrangian_hessian_s(z, v)*s*s
 
         # The scaled Lagragian Hessian is:
         #     [[ Hx    0    ]]
@@ -368,9 +383,9 @@ def ipsolver(fun, grad, hess, constr, jac,
                        barrier_parameter, tolerance)
         # Solve SQP subproblem
         z, info = equality_constrained_sqp(
-            subprob.barrier_fun,
-            subprob.barrier_grad,
-            subprob.lagr_hess,
+            subprob.function,
+            subprob.gradient,
+            subprob.lagrangian_hessian,
             subprob.constr,
             subprob.jac,
             z, v,
@@ -385,7 +400,7 @@ def ipsolver(fun, grad, hess, constr, jac,
         iteration += info["niter"]
         trust_radius = max(initial_trust_radius,
                            TRUST_ENLARGEMENT*info["trust_radius"])
-        v0 = info["v"]
+        v = info["v"]
         # TODO: Use more advanced strategies from [2]_
         # to update this parameters.
         barrier_parameter = BARRIER_DECAY_RATIO*barrier_parameter
