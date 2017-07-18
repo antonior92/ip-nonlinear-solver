@@ -107,12 +107,12 @@ class BarrierSubproblem:
 
         For z = [x, s], returns the constraints:
 
-            constraints(z) = [   constr_eq(x)   ]
-                             [    A_eq x + b    ]
+            constraints(z) = [   constr_eq(x)        ]
+                             [    A_eq x + b         ]
                              [[ constr_ineq(x) ]     ]
                              [[   A_ineq x + b ]     ]
-                             [[    x - ub ] + s ]  (for ub != inf)
-                             [[    lb - x ]     ]  (for lb != -inf)
+                             [[    x - ub      ] + s ]  (for ub != inf)
+                             [[    lb - x      ]     ]  (for lb != -inf)
         """
         x = self.get_variables(z)
         s = self.get_slack(z)
@@ -143,7 +143,7 @@ class BarrierSubproblem:
     def gradient(self, z):
         """Returns scaled gradient.
 
-        Barrier  scalled gradient
+        Barrier scalled gradient
         of the barrier problem by the previously
         defined scaling factor:
             gradient = [             grad(x)             ]
@@ -158,16 +158,16 @@ class BarrierSubproblem:
 
         Barrier scalled jacobian
         by the previously defined scaling factor:
-            jacobian = [  jac_eq(x)     0  ]
-                       [  A_eq(x)       0  ]
+            jacobian = [  jac_eq(x)          0  ]
+                       [  A_eq(x)            0  ]
                        [[ jac_ineq(x) ]         ]
                        [[   A_ineq    ]         ]
-                       [[   I    ]      S  ]
-                       [[  -I    ]         ]
+                       [[   I         ]      S  ]
+                       [[  -I         ]         ]
         """
         x = self.get_variables(z)
         s = self.get_slack(z)
-        S = spc.diags((s,), (0,))
+        S = spc.diags((s,), (0,)) if self.n_slack > 0 else np.empty((0, 0))
         I = spc.eye(self.n_vars).tocsc()
         I_ub = I[self.ind_ub, :]
         I_lb = I[self.ind_lb, :]
@@ -211,7 +211,8 @@ class BarrierSubproblem:
         s = self.get_slack(z)
         # Compute Hessian in relation to x and s
         Hx = self.lagrangian_hessian_x(z, v)
-        Hs = self.lagrangian_hessian_s(z, v)*s*s
+        if self.n_slack > 0:
+            Hs = self.lagrangian_hessian_s(z, v)*s*s
 
         # The scaled Lagragian Hessian is:
         #     [[ Hx    0    ]]
@@ -219,7 +220,10 @@ class BarrierSubproblem:
         def matvec(vec):
             vec_x = self.get_variables(vec)
             vec_s = self.get_slack(vec)
-            return np.hstack((Hx.dot(vec_x), Hs*vec_s))
+            if self.n_slack > 0:
+                return np.hstack((Hx.dot(vec_x), Hs*vec_s))
+            else:
+                return Hx.dot(vec_x)
         return LinearOperator((self.n_vars+self.n_slack,
                                self.n_vars+self.n_slack),
                               matvec)
@@ -384,6 +388,25 @@ def ipsolver(fun, grad, hess, x0, constr_ineq=None, jac_ineq=None,
     trust_lb = np.hstack((np.full(subprob.n_vars, -np.inf),
                           np.full(subprob.n_slack, -BOUNDARY_PARAMETER)))
     trust_ub = np.full(subprob.n_vars+subprob.n_slack, np.inf)
+
+    # If there are no inequality constraints
+    # uses SQP method.
+    if subprob.n_slack == 0:
+        return equality_constrained_sqp(
+            subprob.function,
+            subprob.gradient,
+            subprob.lagrangian_hessian,
+            subprob.constraints,
+            subprob.jacobian,
+            z, v,
+            trust_radius,
+            trust_lb,
+            trust_ub,
+            stop_criteria,
+            initial_penalty,
+            subprob.scaling)
+    # If there are inequality constraints solve a
+    # sequence of barrier problems
     while True:
         # Update Barrier Problem
         subprob.update(barrier_parameter, tolerance)

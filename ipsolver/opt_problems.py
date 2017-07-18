@@ -13,7 +13,33 @@ __all__ = [
 ]
 
 
-class ProblemMaratos:
+class OptProblem(object):
+
+    constr_ineq = None
+    jac_ineq = None
+    hess_ineq = None
+    constr_eq = None
+    jac_eq = None
+    hess_eq = None
+
+    def __init__(self):
+        self.A_ineq = None
+        self.b_ineq = None
+        self.A_eq = None
+        self.b_eq = None
+        self.lb = None
+        self.ub = None
+
+    def lagr_hess(self, x, v_eq, v_ineq=None):
+        H = self.hess(x)
+        if self.hess_eq is not None:
+            H += self.hess_eq(x, v_eq)
+        if self.hess_ineq is not None:
+            H += self.hess_ineq(x, v_ineq)
+        return H
+
+
+class ProblemMaratos(OptProblem):
     """Problem 15.4 from Nocedal and Wright
 
     The following optimization problem:
@@ -22,6 +48,7 @@ class ProblemMaratos:
     """
 
     def __init__(self, degrees=60):
+        super(ProblemMaratos, self).__init__()
         rads = degrees/180*np.pi
         self.x0 = [np.cos(rads), np.sin(rads)]
         self.v0 = [0]
@@ -46,11 +73,8 @@ class ProblemMaratos:
     def hess_eq(self, x, v):
         return 2*v[0]*np.eye(2)
 
-    def lagr_hess(self, x, v_eq, v_ineq=None):
-        return self.hess(x) + self.hess_eq(x, v_eq)
 
-
-class ProblemSimpleIneqConstr:
+class ProblemSimpleIneqConstr(OptProblem):
     """Problem 15.1 from Nocedal and Wright
 
     The following optimization problem:
@@ -61,6 +85,7 @@ class ProblemSimpleIneqConstr:
     """
 
     def __init__(self):
+        super(ProblemSimpleIneqConstr, self).__init__()
         self.x0 = [0, 0]
         self.v0 = [0]
         self.x_opt = np.array([1.952823,  0.088659])
@@ -87,12 +112,10 @@ class ProblemSimpleIneqConstr:
         return 2*v[0]*np.array([[1/(x[0] + 1)**3, 0],
                                 [0, 0]])
 
-    def lagr_hess(self, x, v_eq, v_ineq):
-        return self.hess(x) + self.hess_ineq(x, v_ineq)
 
-
-class ProblemELEC:
+class ProblemELEC(OptProblem):
     def __init__(self, n_electrons=200, random_state=0):
+        super(ProblemELEC, self).__init__()
         self.n_electrons = n_electrons
         self.rng = np.random.RandomState(random_state)
         # Initial Guess
@@ -194,6 +217,3 @@ class ProblemELEC:
     def hess_eq(self, x, v):
         D = 2 * np.diag(v)
         return block_diag(D, D, D)
-
-    def lagr_hess(self, x, v_eq, v_ineq=None):
-        return self.hess(x) + self.hess_eq(x, v_eq)

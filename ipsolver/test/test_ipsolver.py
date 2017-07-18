@@ -1,6 +1,8 @@
 import numpy as np
 from ipsolver import (ipsolver,
-                      ProblemSimpleIneqConstr)
+                      ProblemSimpleIneqConstr,
+                      ProblemELEC,
+                      ProblemMaratos)
 from numpy.testing import (TestCase, assert_array_almost_equal,
                            assert_array_equal, assert_array_less,
                            assert_raises, assert_equal, assert_,
@@ -10,14 +12,18 @@ from numpy.testing import (TestCase, assert_array_almost_equal,
 
 class TestIPSolver(TestCase):
 
-    def test_on_constrained_problems(self):
+    def test_problems(self):
 
-        list_of_problems = [ProblemSimpleIneqConstr(), ]
+        list_of_problems = [ProblemSimpleIneqConstr(),
+                            ProblemMaratos(),
+                            ProblemELEC()]
 
         for p in list_of_problems:
             x, info = ipsolver(
-                p.fun, p.grad, p.lagr_hess, p.x0, p.constr_ineq, p.jac_ineq)
-            assert_array_less(info["opt"], 1e-8)
+                p.fun, p.grad, p.lagr_hess, p.x0, p.constr_ineq, p.jac_ineq,
+                p.constr_eq, p.jac_eq, p.A_ineq, p.b_ineq, p.A_eq, p.b_ineq,
+                p.lb, p.ub)
+            assert_array_less(info["opt"], 1e-5)
             assert_array_less(info["constr_violation"], 1e-8)
             if p.x_opt is not None:
                 assert_array_almost_equal(x, p.x_opt)
