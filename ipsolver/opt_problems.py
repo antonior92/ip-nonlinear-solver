@@ -75,10 +75,10 @@ class ProblemSimpleIneqConstr:
     def hess(self, x):
         return np.eye(2)
 
-    def constr(self, x):
+    def constr_ineq(self, x):
         return np.array([-1/(x[0] + 1) + x[1] + 1/4, -x[0], -x[1]])
 
-    def jac(self, x):
+    def jac_ineq(self, x):
         return np.array([[1/(x[0] + 1)**2, 1],
                          [-1, 0],
                          [0, -1]])

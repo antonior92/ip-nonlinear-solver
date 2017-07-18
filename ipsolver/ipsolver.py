@@ -17,39 +17,43 @@ class BarrierSubproblem:
 
         minimize fun(x) - barrier_parameter*sum(log(s))
         subject to: constr_eq(x)     = 0
-                      A_eq x + b     = 0
-                       constr(x) + s = 0
-                         A x + b + s = 0
+                   A_eq x + b_eq     = 0
+                  constr_ineq(x) + s = 0
+               A_ineq x + b_ineq + s = 0
                           x - ub + s = 0  (for ub != inf)
                           lb - x + s = 0  (for lb != -inf)
     """
 
-    def __init__(self, x0, fun, grad, hess, constr, jac,
-                 constr_eq, jac_eq, lb, ub, A, b, A_eq, b_eq,
+    def __init__(self, x0, fun, grad, hess, constr_ineq, jac_ineq,
+                 constr_eq, jac_eq, lb, ub, A_ineq, b_ineq, A_eq, b_eq,
                  barrier_parameter, tolerance, max_substep_iter):
         # Compute number of variables
         self.n_vars, = np.shape(x0)
 
         # Define empty default functions
+        empty_vec = np.empty((0,))
+        empty_matrix = np.empty((0, self.n_vars))
+
         def empty_constr(x):
-            return np.empty((0,))
+            return empty_vec
 
         def empty_jac(x):
-            return np.empty((0, self.n_vars))
+            return empty_matrix
 
         # Store parameters
         self.x0 = x0
         self.fun = fun
         self.grad = grad
         self.hess = hess
-        self.constr = constr if constr is not None else empty_constr
-        self.jac = jac if jac is not None else empty_jac
+        self.constr_ineq = constr_ineq if constr_ineq is not None \
+            else empty_constr
+        self.jac_ineq = jac_ineq if jac_ineq is not None else empty_jac
         self.constr_eq = constr_eq if constr_eq is not None else empty_constr
         self.jac_eq = jac_eq if jac_eq is not None else empty_jac
-        self.A = A if A is not None else np.empty((0, self.n_vars))
-        self.b = b if b is not None else np.empty((0,))
-        self.A_eq = A_eq if A_eq is not None else np.empty((0, self.n_vars))
-        self.b_eq = b_eq if b_eq is not None else np.empty((0,))
+        self.A_ineq = A_ineq if A_ineq is not None else empty_matrix
+        self.b_ineq = b_ineq if b_ineq is not None else empty_vec
+        self.A_eq = A_eq if A_eq is not None else empty_matrix
+        self.b_eq = b_eq if b_eq is not None else empty_vec
         self.lb = lb if lb is not None else np.full((self.n_vars,), -np.inf)
         self.ub = ub if ub is not None else np.full((self.n_vars,), np.inf)
         self.barrier_parameter = barrier_parameter
@@ -64,10 +68,10 @@ class BarrierSubproblem:
         # Nonlinear constraints
         # TODO: Avoid this unecessary call to the constraints.
         self.n_eq, = np.shape(self.constr_eq(x0))
-        self.n_ineq, = np.shape(self.constr(x0))
+        self.n_ineq, = np.shape(self.constr_ineq(x0))
         # Linear constraints
         self.n_lin_eq, = np.shape(self.b_eq)
-        self.n_lin_ineq, = np.shape(self.b)
+        self.n_lin_ineq, = np.shape(self.b_ineq)
         # Number of slack variables
         self.n_slack = (self.n_lb + self.n_ub +
                         self.n_ineq + self.n_lin_ineq)
@@ -105,15 +109,15 @@ class BarrierSubproblem:
 
             constraints(z) = [   constr_eq(x)   ]
                              [    A_eq x + b    ]
-                             [[ constr(x) ]     ]
-                             [[   A x + b ]     ]
+                             [[ constr_ineq(x) ]     ]
+                             [[   A_ineq x + b ]     ]
                              [[    x - ub ] + s ]  (for ub != inf)
                              [[    lb - x ]     ]  (for lb != -inf)
         """
         x = self.get_variables(z)
         s = self.get_slack(z)
-        aux = np.hstack((self.constr(x),
-                         self.A.dot(x) + self.b,
+        aux = np.hstack((self.constr_ineq(x),
+                         self.A_ineq.dot(x) + self.b_ineq,
                          x[self.ind_ub] - self.ub[self.ind_ub],
                          self.lb[self.ind_lb] - x[self.ind_lb]))
         return np.hstack((self.constr_eq(x),
@@ -156,8 +160,8 @@ class BarrierSubproblem:
         by the previously defined scaling factor:
             jacobian = [  jac_eq(x)     0  ]
                        [  A_eq(x)       0  ]
-                       [[ jac(x) ]         ]
-                       [[   A    ]         ]
+                       [[ jac_ineq(x) ]         ]
+                       [[   A_ineq    ]         ]
                        [[   I    ]      S  ]
                        [[  -I    ]         ]
         """
@@ -168,8 +172,8 @@ class BarrierSubproblem:
         I_ub = I[self.ind_ub, :]
         I_lb = I[self.ind_lb, :]
 
-        aux = spc.vstack([self.jac(x),
-                          self.A,
+        aux = spc.vstack([self.jac_ineq(x),
+                          self.A_ineq,
                           I_ub,
                           -I_lb])
         return spc.bmat([[self.jac_eq(x), None],
@@ -242,8 +246,8 @@ def default_stop_criteria(info):
         return False
 
 
-def ipsolver(fun, grad, hess, x0, constr=None, jac=None,
-             constr_eq=None, jac_eq=None, A=None, b=None,
+def ipsolver(fun, grad, hess, x0, constr_ineq=None, jac_ineq=None,
+             constr_eq=None, jac_eq=None, A_ineq=None, b_ineq=None,
              A_eq=None, b_eq=None, lb=None, ub=None,
              stop_criteria=default_stop_criteria,
              initial_barrier_parameter=0.1,
@@ -256,9 +260,9 @@ def ipsolver(fun, grad, hess, x0, constr=None, jac=None,
     Solve problem:
 
         minimize fun(x)
-        subject to: constr(x) <= 0
+        subject to: constr_ineq(x) <= 0
                   constr_eq(x) = 0
-                          A x <= b
+                          A_ineq x <= b
                         A_eq x = b
                          lb <= x <= ub
 
@@ -285,25 +289,25 @@ def ipsolver(fun, grad, hess, x0, constr=None, jac=None,
             - ``H``: LinearOperator (or sparse matrix or ndarray), shape (n, n)
                 Lagrangian Hessian.
 
-    constr : callable
+    constr_ineq : callable
         Inequality constraint:
-            constr(x) -> array_like, shape (n_ineq,)
-    jac : callable
+            constr_ineq(x) -> array_like, shape (n_ineq,)
+    jac_ineq : callable
         Inequality constraints Jacobian:
-            jac(x) -> sparse matrix (or ndarray), shape (n_ineq, n)
+            jac_ineq(x) -> sparse matrix (or ndarray), shape (n_ineq, n)
     constr_eq : callable
         Equality constraint:
-            constr(x) -> array_like, shape (n_eq,)
+            constr_eq(x) -> array_like, shape (n_eq,)
     jac_eq : callable
         Equality constraints Jacobian:
-            jac(x) -> sparse matrix (or ndarray), shape (n_eq, n)
+            jac_ineq(x) -> sparse matrix (or ndarray), shape (n_eq, n)
     lb : array_like, shape (n,)
         Lower bound.
     ub : array_like, shape (n,)
         Upper bound.
-    A : sparse matrix (or ndarray), shape (n_lin_ineq, n)
+    A_ineq : sparse matrix (or ndarray), shape (n_lin_ineq, n)
         Jacobian of linear inequality constraint.
-    b : array_like, shape (n_lin_ineq, n)
+    b_ineq : array_like, shape (n_lin_ineq, n)
         Right-hand side of linear inequality constraint.
     A_eq : sparse matrix (or ndarray), shape (n_lin_eq, n)
         Jacobian of linear equality constraint.
@@ -371,8 +375,8 @@ def ipsolver(fun, grad, hess, x0, constr=None, jac=None,
     iteration = 0
     # Define barrier subproblem
     subprob = BarrierSubproblem(
-            x0, fun, grad, hess, constr, jac, constr_eq, jac_eq,
-            lb, ub, A, b, A_eq, b_eq, barrier_parameter, tolerance,
+            x0, fun, grad, hess, constr_ineq, jac_ineq, constr_eq, jac_eq,
+            lb, ub, A_ineq, b_ineq, A_eq, b_eq, barrier_parameter, tolerance,
             max_substep_iter)
     # Define initial parameter for the first iteration.
     z = subprob.z0()
