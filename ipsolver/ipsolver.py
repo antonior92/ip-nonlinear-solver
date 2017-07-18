@@ -103,12 +103,12 @@ class BarrierSubproblem:
 
         For z = [x, s], returns the constraints:
 
-            constraints(z) = [[   constr_eq(x)   ]]
-                             [[    A_eq x + b    ]]
-                             [[[ constr(x) ]     ]]
-                             [[[   A x + b ]     ]]
-                             [[[    x - ub ] + s ]]  (for ub != inf)
-                             [[[    lb - x ]     ]]  (for lb != -inf)
+            constraints(z) = [   constr_eq(x)   ]
+                             [    A_eq x + b    ]
+                             [[ constr(x) ]     ]
+                             [[   A x + b ]     ]
+                             [[    x - ub ] + s ]  (for ub != inf)
+                             [[    lb - x ]     ]  (for lb != -inf)
         """
         x = self.get_variables(z)
         s = self.get_slack(z)
@@ -142,8 +142,8 @@ class BarrierSubproblem:
         Barrier  scalled gradient
         of the barrier problem by the previously
         defined scaling factor:
-            gradient = [[             grad(x)             ]]
-                       [[ -barrier_parameter*ones(n_ineq) ]]
+            gradient = [             grad(x)             ]
+                       [ -barrier_parameter*ones(n_ineq) ]
         """
         x = self.get_variables(z)
         return np.hstack((self.grad(x),
@@ -154,12 +154,12 @@ class BarrierSubproblem:
 
         Barrier scalled jacobian
         by the previously defined scaling factor:
-            jacobian = [[  jac_eq(x)     0  ]]
-                       [[  A_eq(x)       0  ]]
-                       [[[ jac(x) ]         ]]
-                       [[[   A    ]         ]]
-                       [[[   I    ]      S  ]]
-                       [[[  -I    ]         ]]
+            jacobian = [  jac_eq(x)     0  ]
+                       [  A_eq(x)       0  ]
+                       [[ jac(x) ]         ]
+                       [[   A    ]         ]
+                       [[   I    ]      S  ]
+                       [[  -I    ]         ]
         """
         x = self.get_variables(z)
         s = self.get_slack(z)
@@ -292,10 +292,10 @@ def ipsolver(fun, grad, hess, x0, constr=None, jac=None,
         Inequality constraints Jacobian:
             jac(x) -> sparse matrix (or ndarray), shape (n_ineq, n)
     constr_eq : callable
-        Inequality constraint:
+        Equality constraint:
             constr(x) -> array_like, shape (n_eq,)
     jac_eq : callable
-        Inequality constraints Jacobian:
+        Equality constraints Jacobian:
             jac(x) -> sparse matrix (or ndarray), shape (n_eq, n)
     lb : array_like, shape (n,)
         Lower bound.
@@ -405,8 +405,8 @@ def ipsolver(fun, grad, hess, x0, constr=None, jac=None,
         v = info["v"]
         # TODO: Use more advanced strategies from [2]_
         # to update this parameters.
-        barrier_parameter = BARRIER_DECAY_RATIO*barrier_parameter
-        tolerance = BARRIER_DECAY_RATIO*tolerance
+        barrier_parameter *= BARRIER_DECAY_RATIO
+        tolerance *= BARRIER_DECAY_RATIO
         # Update info
         info['niter'] = iteration
 
