@@ -17,9 +17,9 @@ class BarrierSubproblem:
 
         minimize fun(x) - barrier_parameter*sum(log(s))
         subject to: constr_eq(x)     = 0
-                   A_eq x + b_eq     = 0
+                   A_eq x - b_eq     = 0
                   constr_ineq(x) + s = 0
-               A_ineq x + b_ineq + s = 0
+               A_ineq x - b_ineq + s = 0
                           x - ub + s = 0  (for ub != inf)
                           lb - x + s = 0  (for lb != -inf)
     """
@@ -108,20 +108,20 @@ class BarrierSubproblem:
         For z = [x, s], returns the constraints:
 
             constraints(z) = [   constr_eq(x)        ]
-                             [    A_eq x + b         ]
+                             [    A_eq x - b         ]
                              [[ constr_ineq(x) ]     ]
-                             [[   A_ineq x + b ]     ]
+                             [[   A_ineq x - b ]     ]
                              [[    x - ub      ] + s ]  (for ub != inf)
                              [[    lb - x      ]     ]  (for lb != -inf)
         """
         x = self.get_variables(z)
         s = self.get_slack(z)
         aux = np.hstack((self.constr_ineq(x),
-                         self.A_ineq.dot(x) + self.b_ineq,
+                         self.A_ineq.dot(x) - self.b_ineq,
                          x[self.ind_ub] - self.ub[self.ind_ub],
                          self.lb[self.ind_lb] - x[self.ind_lb]))
         return np.hstack((self.constr_eq(x),
-                          self.A_eq.dot(x) + self.b_eq,
+                          self.A_eq.dot(x) - self.b_eq,
                           aux + s))
 
     def scaling(self, z):

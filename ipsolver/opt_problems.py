@@ -9,8 +9,11 @@ from scipy.sparse import csc_matrix
 __all__ = [
     'ProblemMaratos',
     'ProblemSimpleIneqConstr',
-    'ProblemELEC'
-]
+    'ProblemELEC',
+    'ProblemRosenbrock',
+    'ProblemBoundContrRosenbrock',
+    'ProblemIneqLinearConstrRosenbrock',
+    'ProblemLinearConstrRosenbrock']
 
 
 class OptProblem(object):
@@ -29,6 +32,8 @@ class OptProblem(object):
         self.b_eq = None
         self.lb = None
         self.ub = None
+        self.x_opt = None
+        self.f_opt = None
 
     def lagr_hess(self, x, v_eq, v_ineq=None):
         H = self.hess(x)
@@ -127,9 +132,6 @@ class ProblemELEC(OptProblem):
         self.x0 = np.hstack((x, y, z))
         # Initial Multiplier
         self.v0 = np.zeros(self.n_electrons)
-        # Optimal point unknown
-        self.x_opt = None
-        self.f_opt = None
 
     def _get_cordinates(self, x):
         x_coord = x[:self.n_electrons]
@@ -217,3 +219,99 @@ class ProblemELEC(OptProblem):
     def hess_eq(self, x, v):
         D = 2 * np.diag(v)
         return block_diag(D, D, D)
+
+
+class ProblemRosenbrock(OptProblem):
+    """Rosenbrock function.
+
+    The following optimization problem:
+        minimize sum(100.0*(x[1:] - x[:-1]**2.0)**2.0 + (1 - x[:-1])**2.0)
+    """
+
+    def __init__(self, n=2, random_state=0):
+        super(ProblemRosenbrock, self).__init__()
+        rng = np.random.RandomState(random_state)
+        self.x0 = rng.uniform(-1, 1, n)
+        self.v0 = []
+        self.x_opt = np.ones(n)
+
+    def fun(self, x):
+        x = np.asarray(x)
+        r = np.sum(100.0 * (x[1:] - x[:-1]**2.0)**2.0 + (1 - x[:-1])**2.0,
+                   axis=0)
+        return r
+
+    def grad(self, x):
+        x = np.asarray(x)
+        xm = x[1:-1]
+        xm_m1 = x[:-2]
+        xm_p1 = x[2:]
+        der = np.zeros_like(x)
+        der[1:-1] = (200 * (xm - xm_m1**2) -
+                     400 * (xm_p1 - xm**2) * xm - 2 * (1 - xm))
+        der[0] = -400 * x[0] * (x[1] - x[0]**2) - 2 * (1 - x[0])
+        der[-1] = 200 * (x[-1] - x[-2]**2)
+        return der
+
+    def hess(self, x):
+        x = np.atleast_1d(x)
+        H = np.diag(-400 * x[:-1], 1) - np.diag(400 * x[:-1], -1)
+        diagonal = np.zeros(len(x), dtype=x.dtype)
+        diagonal[0] = 1200 * x[0]**2 - 400 * x[1] + 2
+        diagonal[-1] = 200
+        diagonal[1:-1] = 202 + 1200 * x[1:-1]**2 - 400 * x[2:]
+        H = H + np.diag(diagonal)
+        return H
+
+
+class ProblemBoundContrRosenbrock(ProblemRosenbrock):
+    """Bound constrained Rosenbrock function.
+
+    The following optimization problem:
+        minimize sum(100.0*(x[1:] - x[:-1]**2.0)**2.0 + (1 - x[:-1])**2.0)
+        subject to: -1 <= x <=0
+
+    """
+
+    def __init__(self, n=2, random_state=0):
+        super(ProblemBoundContrRosenbrock, self).__init__(n, random_state)
+        self.x_opt = np.zeros(n)
+        self.lb = -1*np.ones(n)
+        self.ub = np.zeros(n)
+
+
+class ProblemIneqLinearConstrRosenbrock(ProblemRosenbrock):
+    """Rosenbrock subject to inequality constraints.
+
+    The following optimization problem:
+        minimize sum(100.0*(x[1] - x[0]**2)**2.0 + (1 - x[0])**2)
+        subject to: x[0] + 2 x[1] <= 1
+    """
+
+    def __init__(self, random_state=0):
+        super(ProblemIneqLinearConstrRosenbrock, self).__init__(2, random_state)
+        self.v0 = [0]
+        self.x0 = [-1, -0.5]
+        self.A_ineq = np.array([1, 2])
+        self.b_ineq = np.array([1])
+        self.x_opt = [0.5022, 0.2489]
+
+
+class ProblemLinearConstrRosenbrock(ProblemRosenbrock):
+    """Rosenbrock subject to equality and inequality constraints.
+
+    The following optimization problem:
+        minimize sum(100.0*(x[1] - x[0]**2)**2.0 + (1 - x[0])**2)
+        subject to: x[0] + 2 x[1] <= 1
+                    2 x[0] + x[1] = 1
+    """
+
+    def __init__(self, random_state=0):
+        super(ProblemLinearConstrRosenbrock, self).__init__(2, random_state)
+        self.v0 = [0]
+        self.x0 = [-1, -0.5]
+        self.A_ineq = np.array([1, 2])
+        self.b_ineq = np.array([1])
+        self.A_eq = np.array([2, 1])
+        self.b_eq = np.array([1])
+        self.x_opt = [0.41494,  0.17011]

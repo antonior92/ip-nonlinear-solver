@@ -1,7 +1,8 @@
 import numpy as np
 from ipsolver import (equality_constrained_sqp,
                       ProblemMaratos,
-                      ProblemELEC)
+                      ProblemELEC,
+                      ProblemRosenbrock)
 from numpy.testing import (TestCase, assert_array_almost_equal,
                            assert_array_equal, assert_array_less,
                            assert_raises, assert_equal, assert_,
