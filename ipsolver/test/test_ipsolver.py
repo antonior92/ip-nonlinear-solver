@@ -16,7 +16,7 @@ class TestIPSolver(TestCase):
 
         list_of_problems = [ProblemSimpleIneqConstr(),
                             ProblemMaratos(),
-                            ProblemELEC()]
+                            ProblemELEC(n_electrons=50)]
 
         for p in list_of_problems:
             x, info = ipsolver(

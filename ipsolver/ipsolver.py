@@ -244,7 +244,7 @@ class BarrierSubproblem:
 
 def default_stop_criteria(info):
     if (info["opt"] < 1e-8 and info["constr_violation"] < 1e-8) \
-       or info["niter"] > 1000:
+       or info["niter"] > 1000 or info["trust_radius"] < 1e-12:
         return True
     else:
         return False
