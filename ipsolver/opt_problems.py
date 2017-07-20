@@ -270,7 +270,6 @@ class ProblemBoundContrRosenbrock(ProblemRosenbrock):
     The following optimization problem:
         minimize sum(100.0*(x[1:] - x[:-1]**2.0)**2.0 + (1 - x[:-1])**2.0)
         subject to: -1 <= x <=0
-
     """
 
     def __init__(self, n=2, random_state=0):
@@ -286,6 +285,8 @@ class ProblemIneqLinearConstrRosenbrock(ProblemRosenbrock):
     The following optimization problem:
         minimize sum(100.0*(x[1] - x[0]**2)**2.0 + (1 - x[0])**2)
         subject to: x[0] + 2 x[1] <= 1
+
+    Taken from matlab ``fmincon`` documentation.
     """
 
     def __init__(self, random_state=0):
@@ -304,6 +305,8 @@ class ProblemLinearConstrRosenbrock(ProblemRosenbrock):
         minimize sum(100.0*(x[1] - x[0]**2)**2.0 + (1 - x[0])**2)
         subject to: x[0] + 2 x[1] <= 1
                     2 x[0] + x[1] = 1
+
+    Taken from matlab ``fimincon`` documentation.
     """
 
     def __init__(self, random_state=0):

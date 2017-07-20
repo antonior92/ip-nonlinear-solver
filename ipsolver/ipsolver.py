@@ -266,8 +266,8 @@ def ipsolver(fun, grad, hess, x0, constr_ineq=None, jac_ineq=None,
         minimize fun(x)
         subject to: constr_ineq(x) <= 0
                   constr_eq(x) = 0
-                          A_ineq x <= b
-                        A_eq x = b
+                          A_ineq x <= b_ineq
+                        A_eq x = b_eq
                          lb <= x <= ub
 
     using trust-region interior point method described in [1]_.
