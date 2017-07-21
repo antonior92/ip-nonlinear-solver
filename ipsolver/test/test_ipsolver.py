@@ -1,12 +1,6 @@
 import numpy as np
 from ipsolver import (ipsolver,
-                      ProblemSimpleIneqConstr,
-                      ProblemELEC,
-                      ProblemMaratos,
-                      ProblemRosenbrock,
-                      ProblemBoundContrRosenbrock,
-                      ProblemIneqLinearConstrRosenbrock,
-                      ProblemLinearConstrRosenbrock)
+                      opt_problems)
 from numpy.testing import (TestCase, assert_array_almost_equal,
                            assert_array_equal, assert_array_less,
                            assert_raises, assert_equal, assert_,
@@ -18,15 +12,15 @@ class TestIPSolver(TestCase):
 
     def test_problems(self):
 
-        list_of_problems = [ProblemRosenbrock(),
-                            ProblemRosenbrock(n=20),
-                            ProblemBoundContrRosenbrock(),
-                            ProblemBoundContrRosenbrock(n=20),
-                            ProblemIneqLinearConstrRosenbrock(),
-                            ProblemLinearConstrRosenbrock(),
-                            ProblemSimpleIneqConstr(),
-                            ProblemMaratos(),
-                            ProblemELEC(n_electrons=50)]
+        list_of_problems = [opt_problems.Rosenbrock(),
+                            opt_problems.Rosenbrock(n=20),
+                            opt_problems.BoundContrRosenbrock(),
+                            opt_problems.BoundContrRosenbrock(n=20),
+                            opt_problems.IneqLinearConstrRosenbrock(),
+                            opt_problems.LinearConstrRosenbrock(),
+                            opt_problems.SimpleIneqConstr(),
+                            opt_problems.Maratos(),
+                            opt_problems.ELEC(n_electrons=50)]
 
         for p in list_of_problems:
             x, info = ipsolver(

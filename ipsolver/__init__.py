@@ -3,7 +3,6 @@
 from .qp_subproblem import *
 from .projections import *
 from .equality_constrained_sqp import *
-from .opt_problems import *
 from .ipsolver import *
 from .constraints_parser import *
 

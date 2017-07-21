@@ -6,34 +6,42 @@ from scipy.linalg import block_diag
 from scipy.sparse import csc_matrix
 
 
-__all__ = [
-    'ProblemMaratos',
-    'ProblemSimpleIneqConstr',
-    'ProblemELEC',
-    'ProblemRosenbrock',
-    'ProblemBoundContrRosenbrock',
-    'ProblemIneqLinearConstrRosenbrock',
-    'ProblemLinearConstrRosenbrock']
+__all__ = ['Maratos',
+           'SimpleIneqConstr',
+           'ELEC',
+           'Rosenbrock',
+           'BoundContrRosenbrock',
+           'IneqLinearConstrRosenbrock',
+           'LinearConstrRosenbrock']
 
 
-class OptProblem(object):
+class MatlabLikeInterface(object):
+    """Matlab like optimization problem interface.
 
-    constr_ineq = None
-    jac_ineq = None
-    hess_ineq = None
+    Optimization problem of the form:
+
+        minimize fun(x)
+        subject to: constr_ineq(x) <= 0
+                    constr_eq(x) = 0
+                    A_ineq x <= b_ineq
+                    A_eq x = b_eq
+                    lb <= x <= ub
+
+    """
     constr_eq = None
     jac_eq = None
     hess_eq = None
-
-    def __init__(self):
-        self.A_ineq = None
-        self.b_ineq = None
-        self.A_eq = None
-        self.b_eq = None
-        self.lb = None
-        self.ub = None
-        self.x_opt = None
-        self.f_opt = None
+    constr_ineq = None
+    jac_ineq = None
+    hess_ineq = None
+    lb = None
+    ub = None
+    A_eq = None
+    b_eq = None
+    A_ineq = None
+    b_ineq = None
+    x_opt = None
+    f_opt = None
 
     def lagr_hess(self, x, v_eq, v_ineq=None):
         H = self.hess(x)
@@ -44,7 +52,7 @@ class OptProblem(object):
         return H
 
 
-class ProblemMaratos(OptProblem):
+class Maratos(MatlabLikeInterface):
     """Problem 15.4 from Nocedal and Wright
 
     The following optimization problem:
@@ -53,7 +61,6 @@ class ProblemMaratos(OptProblem):
     """
 
     def __init__(self, degrees=60):
-        super(ProblemMaratos, self).__init__()
         rads = degrees/180*np.pi
         self.x0 = [np.cos(rads), np.sin(rads)]
         self.v0 = [0]
@@ -79,7 +86,7 @@ class ProblemMaratos(OptProblem):
         return 2*v[0]*np.eye(2)
 
 
-class ProblemSimpleIneqConstr(OptProblem):
+class SimpleIneqConstr(MatlabLikeInterface):
     """Problem 15.1 from Nocedal and Wright
 
     The following optimization problem:
@@ -90,7 +97,6 @@ class ProblemSimpleIneqConstr(OptProblem):
     """
 
     def __init__(self):
-        super(ProblemSimpleIneqConstr, self).__init__()
         self.x0 = [0, 0]
         self.v0 = [0]
         self.x_opt = np.array([1.952823,  0.088659])
@@ -118,9 +124,8 @@ class ProblemSimpleIneqConstr(OptProblem):
                                 [0, 0]])
 
 
-class ProblemELEC(OptProblem):
+class ELEC(MatlabLikeInterface):
     def __init__(self, n_electrons=200, random_state=0):
-        super(ProblemELEC, self).__init__()
         self.n_electrons = n_electrons
         self.rng = np.random.RandomState(random_state)
         # Initial Guess
@@ -221,7 +226,7 @@ class ProblemELEC(OptProblem):
         return block_diag(D, D, D)
 
 
-class ProblemRosenbrock(OptProblem):
+class Rosenbrock(MatlabLikeInterface):
     """Rosenbrock function.
 
     The following optimization problem:
@@ -229,7 +234,6 @@ class ProblemRosenbrock(OptProblem):
     """
 
     def __init__(self, n=2, random_state=0):
-        super(ProblemRosenbrock, self).__init__()
         rng = np.random.RandomState(random_state)
         self.x0 = rng.uniform(-1, 1, n)
         self.v0 = []
@@ -264,7 +268,7 @@ class ProblemRosenbrock(OptProblem):
         return H
 
 
-class ProblemBoundContrRosenbrock(ProblemRosenbrock):
+class BoundContrRosenbrock(Rosenbrock):
     """Bound constrained Rosenbrock function.
 
     The following optimization problem:
@@ -273,13 +277,13 @@ class ProblemBoundContrRosenbrock(ProblemRosenbrock):
     """
 
     def __init__(self, n=2, random_state=0):
-        super(ProblemBoundContrRosenbrock, self).__init__(n, random_state)
+        Rosenbrock.__init__(self, n, random_state)
         self.x_opt = np.zeros(n)
         self.lb = -1*np.ones(n)
         self.ub = np.zeros(n)
 
 
-class ProblemIneqLinearConstrRosenbrock(ProblemRosenbrock):
+class IneqLinearConstrRosenbrock(Rosenbrock):
     """Rosenbrock subject to inequality constraints.
 
     The following optimization problem:
@@ -290,7 +294,7 @@ class ProblemIneqLinearConstrRosenbrock(ProblemRosenbrock):
     """
 
     def __init__(self, random_state=0):
-        super(ProblemIneqLinearConstrRosenbrock, self).__init__(2, random_state)
+        Rosenbrock.__init__(self, 2, random_state)
         self.v0 = [0]
         self.x0 = [-1, -0.5]
         self.A_ineq = np.array([1, 2])
@@ -298,7 +302,7 @@ class ProblemIneqLinearConstrRosenbrock(ProblemRosenbrock):
         self.x_opt = [0.5022, 0.2489]
 
 
-class ProblemLinearConstrRosenbrock(ProblemRosenbrock):
+class LinearConstrRosenbrock(Rosenbrock):
     """Rosenbrock subject to equality and inequality constraints.
 
     The following optimization problem:
@@ -310,7 +314,7 @@ class ProblemLinearConstrRosenbrock(ProblemRosenbrock):
     """
 
     def __init__(self, random_state=0):
-        super(ProblemLinearConstrRosenbrock, self).__init__(2, random_state)
+        Rosenbrock.__init__(self, 2, random_state)
         self.v0 = [0]
         self.x0 = [-1, -0.5]
         self.A_ineq = np.array([1, 2])

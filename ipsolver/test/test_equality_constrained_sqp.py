@@ -1,8 +1,6 @@
 import numpy as np
 from ipsolver import (equality_constrained_sqp,
-                      ProblemMaratos,
-                      ProblemELEC,
-                      ProblemRosenbrock)
+                      opt_problems)
 from numpy.testing import (TestCase, assert_array_almost_equal,
                            assert_array_equal, assert_array_less,
                            assert_raises, assert_equal, assert_,
@@ -14,11 +12,11 @@ class TestEqualityConstrainedSQPSolver(TestCase):
 
     def test_on_equality_constrained_problems(self):
 
-        list_of_problems = [ProblemMaratos(degrees=60),
-                            ProblemMaratos(degrees=10),
-                            ProblemELEC(n_electrons=10),
-                            ProblemELEC(n_electrons=30),
-                            ProblemELEC(n_electrons=50)]
+        list_of_problems = [opt_problems.Maratos(degrees=60),
+                            opt_problems.Maratos(degrees=10),
+                            opt_problems.ELEC(n_electrons=10),
+                            opt_problems.ELEC(n_electrons=30),
+                            opt_problems.ELEC(n_electrons=50)]
 
         for p in list_of_problems:
             x, info = equality_constrained_sqp(
