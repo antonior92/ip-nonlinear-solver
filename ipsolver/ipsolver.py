@@ -17,77 +17,41 @@ class BarrierSubproblem:
 
         minimize fun(x) - barrier_parameter*sum(log(s))
         subject to: constr_eq(x)     = 0
-                   A_eq x - b_eq     = 0
                   constr_ineq(x) + s = 0
-               A_ineq x - b_ineq + s = 0
-                          x - ub + s = 0  (for ub != inf)
-                          lb - x + s = 0  (for lb != -inf)
     """
 
-    def __init__(self, x0, fun, grad, hess, constr_ineq, jac_ineq,
-                 constr_eq, jac_eq, lb, ub, A_ineq, b_ineq, A_eq, b_eq,
-                 barrier_parameter, tolerance, max_substep_iter):
+    def __init__(self, x0, fun, grad, lagr_hess, n_ineq, constr_ineq,
+                 jac_ineq, n_eq, constr_eq, jac_eq, barrier_parameter,
+                 tolerance, max_substep_iter):
         # Compute number of variables
         self.n_vars, = np.shape(x0)
-
-        # Define empty default functions
-        empty_vec = np.empty((0,))
-        empty_matrix = np.empty((0, self.n_vars))
-
-        def empty_constr(x):
-            return empty_vec
-
-        def empty_jac(x):
-            return empty_matrix
-
         # Store parameters
         self.x0 = x0
         self.fun = fun
         self.grad = grad
-        self.hess = hess
-        self.constr_ineq = constr_ineq if constr_ineq is not None \
-            else empty_constr
-        self.jac_ineq = jac_ineq if jac_ineq is not None else empty_jac
-        self.constr_eq = constr_eq if constr_eq is not None else empty_constr
-        self.jac_eq = jac_eq if jac_eq is not None else empty_jac
-        self.A_ineq = A_ineq if A_ineq is not None else empty_matrix
-        self.b_ineq = b_ineq if b_ineq is not None else empty_vec
-        self.A_eq = A_eq if A_eq is not None else empty_matrix
-        self.b_eq = b_eq if b_eq is not None else empty_vec
-        self.lb = lb if lb is not None else np.full((self.n_vars,), -np.inf)
-        self.ub = ub if ub is not None else np.full((self.n_vars,), np.inf)
+        self.lagr_hess = lagr_hess
+        self.constr_ineq = constr_ineq
+        self.jac_ineq = jac_ineq
+        self.constr_eq = constr_eq
+        self.jac_eq = jac_eq
         self.barrier_parameter = barrier_parameter
         self.tolerance = tolerance
         self.max_substep_iter = max_substep_iter
-
-        # Compute number of finite lower and upper bounds
-        self.ind_lb = np.invert(np.isinf(self.lb))
-        self.n_lb = np.int(np.sum(self.ind_lb))
-        self.ind_ub = np.invert(np.isinf(self.ub))
-        self.n_ub = np.int(np.sum(self.ind_ub))
-        # Nonlinear constraints
-        # TODO: Avoid this unecessary call to the constraints.
-        self.n_eq, = np.shape(self.constr_eq(x0))
-        self.n_ineq, = np.shape(self.constr_ineq(x0))
-        # Linear constraints
-        self.n_lin_eq, = np.shape(self.b_eq)
-        self.n_lin_ineq, = np.shape(self.b_ineq)
-        # Number of slack variables
-        self.n_slack = (self.n_lb + self.n_ub +
-                        self.n_ineq + self.n_lin_ineq)
+        self.n_eq = n_eq
+        self.n_ineq = n_ineq
 
     def update(self, barrier_parameter, tolerance):
         self.barrier_parameter = barrier_parameter
         self.tolerance = tolerance
 
     def get_slack(self, z):
-        return z[self.n_vars:self.n_vars+self.n_slack]
+        return z[self.n_vars:self.n_vars+self.n_ineq]
 
     def get_variables(self, z):
         return z[:self.n_vars]
 
     def s0(self):
-        return np.ones(self.n_slack)
+        return np.ones(self.n_ineq)
 
     def z0(self):
         return np.hstack((self.x0, self.s0()))
@@ -107,22 +71,13 @@ class BarrierSubproblem:
 
         For z = [x, s], returns the constraints:
 
-            constraints(z) = [   constr_eq(x)        ]
-                             [    A_eq x - b         ]
-                             [[ constr_ineq(x) ]     ]
-                             [[   A_ineq x - b ]     ]
-                             [[    x - ub      ] + s ]  (for ub != inf)
-                             [[    lb - x      ]     ]  (for lb != -inf)
+            constraints(z) = [   constr_eq(x)     ]
+                             [ constr_ineq(x) + s ]
         """
         x = self.get_variables(z)
         s = self.get_slack(z)
-        aux = np.hstack((self.constr_ineq(x),
-                         self.A_ineq.dot(x) - self.b_ineq,
-                         x[self.ind_ub] - self.ub[self.ind_ub],
-                         self.lb[self.ind_lb] - x[self.ind_lb]))
         return np.hstack((self.constr_eq(x),
-                          self.A_eq.dot(x) - self.b_eq,
-                          aux + s))
+                          self.constr_ineq(x) + s))
 
     def scaling(self, z):
         """Returns scaling vector.
@@ -136,8 +91,8 @@ class BarrierSubproblem:
         # Diagonal Matrix
         def matvec(vec):
             return diag_elements*vec
-        return LinearOperator((self.n_vars+self.n_slack,
-                               self.n_vars+self.n_slack),
+        return LinearOperator((self.n_vars+self.n_ineq,
+                               self.n_vars+self.n_ineq),
                               matvec)
 
     def gradient(self, z):
@@ -151,34 +106,21 @@ class BarrierSubproblem:
         """
         x = self.get_variables(z)
         return np.hstack((self.grad(x),
-                          -self.barrier_parameter*np.ones(self.n_slack)))
+                          -self.barrier_parameter*np.ones(self.n_ineq)))
 
     def jacobian(self, z):
         """Returns scaled Jacobian.
 
         Barrier scalled jacobian
         by the previously defined scaling factor:
-            jacobian = [  jac_eq(x)          0  ]
-                       [  A_eq(x)            0  ]
-                       [[ jac_ineq(x) ]         ]
-                       [[   A_ineq    ]         ]
-                       [[   I         ]      S  ]
-                       [[  -I         ]         ]
+            jacobian = [  jac_eq(x)  0  ]
+                       [ jac_ineq(x) S  ]
         """
         x = self.get_variables(z)
         s = self.get_slack(z)
-        S = spc.diags((s,), (0,)) if self.n_slack > 0 else np.empty((0, 0))
-        I = spc.eye(self.n_vars).tocsc()
-        I_ub = I[self.ind_ub, :]
-        I_lb = I[self.ind_lb, :]
-
-        aux = spc.vstack([self.jac_ineq(x),
-                          self.A_ineq,
-                          I_ub,
-                          -I_lb])
+        S = spc.diags((s,), (0,)) if self.n_ineq > 0 else np.empty((0, 0))
         return spc.bmat([[self.jac_eq(x), None],
-                         [self.A_eq, None],
-                         [aux, S]], "csc")
+                         [self.jac_ineq(x), S]], "csc")
 
     def lagrangian_hessian_x(self, z, v):
         """Returns Lagrangian Hessian (in relation to variables ``x``)"""
@@ -186,9 +128,9 @@ class BarrierSubproblem:
         # Get lagrange multipliers relatated to nonlinear equality constraints
         v_eq = v[:self.n_eq]
         # Get lagrange multipliers relatated to nonlinear ineq. constraints
-        v_ineq = v[self.n_eq+self.n_lin_eq:self.n_eq+self.n_lin_eq+self.n_ineq]
-        hess = self.hess
-        return hess(x, v_eq, v_ineq)
+        v_ineq = v[self.n_eq:self.n_eq+self.n_ineq]
+        lagr_hess = self.lagr_hess
+        return lagr_hess(x, v_eq, v_ineq)
 
     def lagrangian_hessian_s(self, z, v):
         """Returns Lagrangian Hessian (in relation to slack variables ``s``)"""
@@ -200,32 +142,32 @@ class BarrierSubproblem:
         # Using the primal-dual formulation
         #     lagrangian_hessian_s = diag(v/s)
         # Reference [1]_ p. 883, formula (3.11)
-        primal_dual = v[-self.n_slack:]/s
+        primal_dual = v[-self.n_ineq:]/s
         # Uses the primal-dual formulation for
         # positives values of v_ineq, and primal
         # formulation for the remaining ones.
-        return np.where(v[-self.n_slack:] > 0, primal_dual, primal)
+        return np.where(v[-self.n_ineq:] > 0, primal_dual, primal)
 
     def lagrangian_hessian(self, z, v):
         """Returns scaled Lagrangian Hessian"""
         s = self.get_slack(z)
         # Compute Hessian in relation to x and s
         Hx = self.lagrangian_hessian_x(z, v)
-        if self.n_slack > 0:
+        if self.n_ineq > 0:
             Hs = self.lagrangian_hessian_s(z, v)*s*s
 
         # The scaled Lagragian Hessian is:
-        #     [[ Hx    0    ]]
-        #     [[ 0   S Hs S ]]
+        #     [ Hx    0    ]
+        #     [ 0   S Hs S ]
         def matvec(vec):
             vec_x = self.get_variables(vec)
             vec_s = self.get_slack(vec)
-            if self.n_slack > 0:
+            if self.n_ineq > 0:
                 return np.hstack((Hx.dot(vec_x), Hs*vec_s))
             else:
                 return Hx.dot(vec_x)
-        return LinearOperator((self.n_vars+self.n_slack,
-                               self.n_vars+self.n_slack),
+        return LinearOperator((self.n_vars+self.n_ineq,
+                               self.n_vars+self.n_ineq),
                               matvec)
 
     def stop_criteria(self, info):
@@ -250,9 +192,8 @@ def default_stop_criteria(info):
         return False
 
 
-def ipsolver(fun, grad, hess, x0, constr_ineq=None, jac_ineq=None,
-             constr_eq=None, jac_eq=None, A_ineq=None, b_ineq=None,
-             A_eq=None, b_eq=None, lb=None, ub=None,
+def ipsolver(fun, grad, lagr_hess, n_ineq, constr_ineq,
+             jac_ineq, n_eq, constr_eq, jac_eq, x0,
              stop_criteria=default_stop_criteria,
              initial_barrier_parameter=0.1,
              initial_tolerance=0.1,
@@ -266,9 +207,6 @@ def ipsolver(fun, grad, hess, x0, constr_ineq=None, jac_ineq=None,
         minimize fun(x)
         subject to: constr_ineq(x) <= 0
                     constr_eq(x) = 0
-                    A_ineq x <= b_ineq
-                    A_eq x = b_eq
-                    lb <= x <= ub
 
     using trust-region interior point method described in [1]_.
 
@@ -280,7 +218,7 @@ def ipsolver(fun, grad, hess, x0, constr_ineq=None, jac_ineq=None,
     grad : callable
         Gradient vector:
             grad(x) -> array_like, shape (n,)
-    hess : callable
+    lagr_hess : callable
         Lagrangian hessian:
             hess(x, v_eq, v_ineq) -> H
 
@@ -292,31 +230,22 @@ def ipsolver(fun, grad, hess, x0, constr_ineq=None, jac_ineq=None,
                 Lagrange multipliers for inequality constraints.
             - ``H``: LinearOperator (or sparse matrix or ndarray), shape (n, n)
                 Lagrangian Hessian.
-
+    n_ineq : int
+        Number of inequality constraints.
     constr_ineq : callable
         Inequality constraint:
             constr_ineq(x) -> array_like, shape (n_ineq,)
     jac_ineq : callable
         Inequality constraints Jacobian:
             jac_ineq(x) -> sparse matrix (or ndarray), shape (n_ineq, n)
+    n_eq : int
+        Number of equality constraints.
     constr_eq : callable
         Equality constraint:
             constr_eq(x) -> array_like, shape (n_eq,)
     jac_eq : callable
         Equality constraints Jacobian:
             jac_ineq(x) -> sparse matrix (or ndarray), shape (n_eq, n)
-    lb : array_like, shape (n,)
-        Lower bound.
-    ub : array_like, shape (n,)
-        Upper bound.
-    A_ineq : sparse matrix (or ndarray), shape (n_lin_ineq, n)
-        Jacobian of linear inequality constraint.
-    b_ineq : array_like, shape (n_lin_ineq, n)
-        Right-hand side of linear inequality constraint.
-    A_eq : sparse matrix (or ndarray), shape (n_lin_eq, n)
-        Jacobian of linear equality constraint.
-    b_eq : array_like, shape (n_lin_eq, n)
-        Right-hand side of linear equality constraint.
     x0 : array_like, shape (n,)
         Starting point.
     stop_criteria: callable
@@ -379,19 +308,19 @@ def ipsolver(fun, grad, hess, x0, constr_ineq=None, jac_ineq=None,
     iteration = 0
     # Define barrier subproblem
     subprob = BarrierSubproblem(
-            x0, fun, grad, hess, constr_ineq, jac_ineq, constr_eq, jac_eq,
-            lb, ub, A_ineq, b_ineq, A_eq, b_eq, barrier_parameter, tolerance,
-            max_substep_iter)
+        x0, fun, grad, lagr_hess, n_ineq, constr_ineq, jac_ineq,
+        n_eq, constr_eq, jac_eq, barrier_parameter, tolerance,
+        max_substep_iter)
     # Define initial parameter for the first iteration.
     z = subprob.z0()
     # Define trust region bounds
     trust_lb = np.hstack((np.full(subprob.n_vars, -np.inf),
-                          np.full(subprob.n_slack, -BOUNDARY_PARAMETER)))
-    trust_ub = np.full(subprob.n_vars+subprob.n_slack, np.inf)
+                          np.full(subprob.n_ineq, -BOUNDARY_PARAMETER)))
+    trust_ub = np.full(subprob.n_vars+subprob.n_ineq, np.inf)
 
     # If there are no inequality constraints
     # uses SQP method.
-    if subprob.n_slack == 0:
+    if subprob.n_ineq == 0:
         return equality_constrained_sqp(
             subprob.function,
             subprob.gradient,

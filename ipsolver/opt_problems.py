@@ -26,7 +26,6 @@ class MatlabLikeInterface(object):
                     A_ineq x <= b_ineq
                     A_eq x = b_eq
                     lb <= x <= ub
-
     """
     constr_eq = None
     jac_eq = None
@@ -42,6 +41,8 @@ class MatlabLikeInterface(object):
     b_ineq = None
     x_opt = None
     f_opt = None
+    n_eq = 0
+    n_ineq = 0
 
     def lagr_hess(self, x, v_eq, v_ineq=None):
         H = self.hess(x)
@@ -66,6 +67,8 @@ class Maratos(MatlabLikeInterface):
         self.v0 = [0]
         self.x_opt = np.array([1.0, 0.0])
         self.f_opt = -1.0
+        self.n_vars = 2
+        self.n_eq = 1
 
     def fun(self, x):
         return 2*(x[0]**2 + x[1]**2 - 1) - x[0]
@@ -101,6 +104,8 @@ class SimpleIneqConstr(MatlabLikeInterface):
         self.v0 = [0]
         self.x_opt = np.array([1.952823,  0.088659])
         self.f_opt = 0.08571
+        self.n_vars = 2
+        self.n_ineq = 3
 
     def fun(self, x):
         return 1/2*(x[0] - 2)**2 + 1/2*(x[1] - 1/2)**2
@@ -137,6 +142,9 @@ class ELEC(MatlabLikeInterface):
         self.x0 = np.hstack((x, y, z))
         # Initial Multiplier
         self.v0 = np.zeros(self.n_electrons)
+        # Number of constraints
+        self.n_vars = 3*n_electrons
+        self.n_eq = n_electrons
 
     def _get_cordinates(self, x):
         x_coord = x[:self.n_electrons]
@@ -238,6 +246,7 @@ class Rosenbrock(MatlabLikeInterface):
         self.x0 = rng.uniform(-1, 1, n)
         self.v0 = []
         self.x_opt = np.ones(n)
+        self.n_vars = n
 
     def fun(self, x):
         x = np.asarray(x)
