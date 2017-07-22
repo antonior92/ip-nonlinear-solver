@@ -6,6 +6,11 @@ import scipy.sparse as spc
 __all__ = ['parse_cutest_like_problem',
            'parse_matlab_like_problem']
 
+xc_prev = None
+c_prev = None
+xa_prev = None
+A_prev = None
+
 
 def parse_cutest_like_problem(
         fun, grad, lagr_hess, n_vars, constr, jac,
@@ -53,21 +58,46 @@ def parse_cutest_like_problem(
     n_total_eq = n_eq
     n_total_ineq = n_ineq + n_lb + n_ub
 
-    # TODO : Avoid keep calling constraints twice, once for
-    # inequality and once for equality constraints.
     def constr_ineq(x):
-        c = constr(x)
+        # Scheme for avoiding evaluate the constraints
+        # multiple times for the same value of x.
+        global xc_prev, c_prev
+        if xc_prev == x:
+            c = c_prev
+        else:
+            c = constr(x)
+            xc_prev = x
+            c_prev = c
+
         return np.hstack((c[c_ub_finite] - c_ub[c_ub_finite],
                           c_lb[c_lb_finite] - c[c_lb_finite],
                           x[ub_finite] - ub[ub_finite],
                           lb[lb_finite] - x[lb_finite]))
 
     def constr_eq(x):
-        c = constr(x)
+        # Scheme for avoiding evaluate the constraints
+        # multiple times for the same value of x.
+        global xc_prev, c_prev
+        if xc_prev == x:
+            c = c_prev
+        else:
+            c = constr(x)
+            xc_prev = x
+            c_prev = c
+
         return c[eq_list] - c_ub[eq_list]
 
     def jac_ineq(x):
-        A = jac(x)
+        # Scheme for avoiding evaluate the Jacobian
+        # matrix multiple times for the same value of x.
+        global xa_prev, A_prev
+        if xa_prev == x:
+            A = A_prev
+        else:
+            A = jac(x)
+            xa_prev = x
+            A_prev = A
+
         I = spc.eye(n_vars).tocsc()
         I_ub = I[ub_finite, :]
         I_lb = I[lb_finite, :]
@@ -77,7 +107,16 @@ def parse_cutest_like_problem(
                            -I_lb])
 
     def jac_eq(x):
-        A = jac(x)
+        # Scheme for avoiding evaluate the Jacobian
+        # matrix multiple times for the same value of x.
+        global xa_prev, A_prev
+        if xa_prev == x:
+            A = A_prev
+        else:
+            A = jac(x)
+            xa_prev = x
+            A_prev = A
+
         return A[eq_list, :]
 
     def new_lagr_hess(x, v_eq, v_ineq):
