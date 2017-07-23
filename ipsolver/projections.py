@@ -4,7 +4,10 @@ from __future__ import division, print_function, absolute_import
 from scipy.sparse import (linalg, bmat, csc_matrix, eye, issparse)
 from scipy.sparse.linalg import LinearOperator
 import scipy.linalg
-from sksparse.cholmod import cholesky_AAt
+try:
+    from sksparse.cholmod import cholesky_AAt
+except ImportError as e:
+    pass
 import numpy as np
 
 __all__ = [
