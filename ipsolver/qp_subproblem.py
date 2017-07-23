@@ -95,6 +95,9 @@ def sphere_intersections(z, d, trust_radius,
         and the sphere. On the other hand, when ``False``, there is no
         intersection.
     """
+    # Special case when d=0
+    if np.linalg.norm(d) == 0:
+        return 0, 0, False
     # Check for inf trust_radius
     if np.isinf(trust_radius):
         if entire_line:
@@ -187,6 +190,9 @@ def box_intersections(z, d, lb, ub,
     d = np.asarray(d)
     lb = np.asarray(lb)
     ub = np.asarray(ub)
+    # Special case when d=0
+    if np.linalg.norm(d) == 0:
+        return 0, 0, False
 
     # Get values for which d==0
     zero_d = (d == 0)
