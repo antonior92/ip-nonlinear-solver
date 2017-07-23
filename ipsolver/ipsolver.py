@@ -22,7 +22,7 @@ class BarrierSubproblem:
 
     def __init__(self, x0, fun, grad, lagr_hess, n_ineq, constr_ineq,
                  jac_ineq, n_eq, constr_eq, jac_eq, barrier_parameter,
-                 tolerance, max_substep_iter):
+                 tolerance):
         # Compute number of variables
         self.n_vars, = np.shape(x0)
         # Store parameters
@@ -36,7 +36,6 @@ class BarrierSubproblem:
         self.jac_eq = jac_eq
         self.barrier_parameter = barrier_parameter
         self.tolerance = tolerance
-        self.max_substep_iter = max_substep_iter
         self.n_eq = n_eq
         self.n_ineq = n_ineq
 
@@ -178,7 +177,8 @@ class BarrierSubproblem:
         """
         if (info["opt"] < self.tolerance
             and info["constr_violation"] < self.tolerance) \
-           or info["niter"] > self.max_substep_iter:
+           or info["niter"] > 1000 \
+           or info["trust_radius"] < 1e-20:
             return True
         else:
             return False
@@ -186,7 +186,7 @@ class BarrierSubproblem:
 
 def default_stop_criteria(info):
     if (info["opt"] < 1e-8 and info["constr_violation"] < 1e-8) \
-       or info["niter"] > 1000 or info["trust_radius"] < 1e-12:
+       or info["niter"] > 1000:
         return True
     else:
         return False
@@ -198,8 +198,7 @@ def ipsolver(fun, grad, lagr_hess, n_ineq, constr_ineq,
              initial_barrier_parameter=0.1,
              initial_tolerance=0.1,
              initial_penalty=1.0,
-             initial_trust_radius=1.0,
-             max_substep_iter=1000):
+             initial_trust_radius=1.0):
     """Trust-region interior points method.
 
     Solve problem:
@@ -309,8 +308,7 @@ def ipsolver(fun, grad, lagr_hess, n_ineq, constr_ineq,
     # Define barrier subproblem
     subprob = BarrierSubproblem(
         x0, fun, grad, lagr_hess, n_ineq, constr_ineq, jac_ineq,
-        n_eq, constr_eq, jac_eq, barrier_parameter, tolerance,
-        max_substep_iter)
+        n_eq, constr_eq, jac_eq, barrier_parameter, tolerance)
     # Define initial parameter for the first iteration.
     z = subprob.z0()
     # Define trust region bounds
@@ -318,22 +316,6 @@ def ipsolver(fun, grad, lagr_hess, n_ineq, constr_ineq,
                           np.full(subprob.n_ineq, -BOUNDARY_PARAMETER)))
     trust_ub = np.full(subprob.n_vars+subprob.n_ineq, np.inf)
 
-    # If there are no inequality constraints
-    # uses SQP method.
-    if subprob.n_ineq == 0:
-        return equality_constrained_sqp(
-            subprob.function,
-            subprob.gradient,
-            subprob.lagrangian_hessian,
-            subprob.constraints,
-            subprob.jacobian,
-            z, v,
-            trust_radius,
-            trust_lb,
-            trust_ub,
-            stop_criteria,
-            initial_penalty,
-            subprob.scaling)
     # If there are inequality constraints solve a
     # sequence of barrier problems
     while True:

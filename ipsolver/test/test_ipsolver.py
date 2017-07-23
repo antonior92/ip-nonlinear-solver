@@ -19,9 +19,7 @@ class TestIPSolver(TestCase):
                             opt_problems.BoundContrRosenbrock(n=20),
                             opt_problems.IneqLinearConstrRosenbrock(),
                             opt_problems.LinearConstrRosenbrock(),
-                            opt_problems.SimpleIneqConstr(),
-                            opt_problems.Maratos(),
-                            opt_problems.ELEC(n_electrons=50)]
+                            opt_problems.SimpleIneqConstr()]
 
         for p in list_of_problems:
             fun, grad, lagr_hess, n_ineq, constr_ineq, \
