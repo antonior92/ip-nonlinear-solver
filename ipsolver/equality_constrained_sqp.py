@@ -3,7 +3,7 @@
 from __future__ import division, print_function, absolute_import
 import scipy.sparse as spc
 from .projections import projections
-from .qp_subproblem import qp_subproblem, inside_box_boundaries
+from .qp_subproblem import qp_subproblem, box_intersections
 import numpy as np
 from numpy.linalg import norm
 
@@ -224,20 +224,22 @@ def equality_constrained_sqp(fun, grad, hess, constr, jac,
         reduction_ratio = actual_reduction / predicted_reduction
 
         # Second order correction (SOC), reference [1]_, p.892.
-        # TODO: Take a look here for S not equal to the identity!!
         if reduction_ratio < SUFFICIENT_REDUCTION_RATIO and \
            norm(dn) <= SOC_THRESHOLD * norm(dt):
             # Compute second order correction
             y = -Y.dot(b_next)
-            # Recompute ared
-            x_soc = x + S.dot(d) + y
+            # Make sure increment is inside box constraints
+            _, t, intersect = box_intersections(d, y, trust_lb, trust_ub)
+            # Compute tentative point
+            x_soc = x + S.dot(d + t*y)
             f_soc = fun(x_soc)
             b_soc = constr(x_soc)
+            # Recompute actual reduction
             merit_function_soc = f_soc + penalty*norm(b_soc)
             actual_reduction_soc = merit_function - merit_function_soc
             # Recompute reduction ratio
             reduction_ratio_soc = actual_reduction_soc / predicted_reduction
-            if reduction_ratio_soc >= SUFFICIENT_REDUCTION_RATIO:
+            if intersect and reduction_ratio_soc >= SUFFICIENT_REDUCTION_RATIO:
                 x_next = x_soc
                 f_next = f_soc
                 b_next = b_soc
