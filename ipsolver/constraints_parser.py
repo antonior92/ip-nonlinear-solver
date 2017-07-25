@@ -126,8 +126,8 @@ def parse_cutest_like_problem(
         v[c_lb_finite] -= v_ineq[n_c_ub:n_c_ub+n_c_lb]
         return lagr_hess(x, v)
 
-    return fun, grad, new_lagr_hess, n_total_eq, constr_eq, \
-        jac_eq, n_total_ineq, constr_ineq, jac_ineq
+    return fun, grad, new_lagr_hess, n_total_ineq, constr_ineq, \
+        jac_ineq, n_total_eq, constr_eq, jac_eq
 
 
 def parse_matlab_like_problem(
