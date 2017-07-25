@@ -62,7 +62,7 @@ def parse_cutest_like_problem(
         # Scheme for avoiding evaluate the constraints
         # multiple times for the same value of x.
         global xc_prev, c_prev
-        if (xc_prev == x).all():
+        if np.array_equal(xc_prev, x):
             c = c_prev
         else:
             c = constr(x)
@@ -78,7 +78,7 @@ def parse_cutest_like_problem(
         # Scheme for avoiding evaluate the constraints
         # multiple times for the same value of x.
         global xc_prev, c_prev
-        if (xc_prev == x).all():
+        if np.array_equal(xc_prev, x):
             c = c_prev
         else:
             c = constr(x)
@@ -91,7 +91,7 @@ def parse_cutest_like_problem(
         # Scheme for avoiding evaluate the Jacobian
         # matrix multiple times for the same value of x.
         global xa_prev, A_prev
-        if (xa_prev == x).all():
+        if np.array_equal(xa_prev, x):
             A = A_prev
         else:
             A = jac(x)
@@ -110,7 +110,7 @@ def parse_cutest_like_problem(
         # Scheme for avoiding evaluate the Jacobian
         # matrix multiple times for the same value of x.
         global xa_prev, A_prev
-        if (xa_prev == x).all():
+        if np.array_equal(xa_prev, x):
             A = A_prev
         else:
             A = jac(x)
