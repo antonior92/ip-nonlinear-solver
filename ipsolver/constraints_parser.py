@@ -1,15 +1,94 @@
 """Converts different optimization problems types"""
 
+from __future__ import division, print_function, absolute_import
 import numpy as np
 import scipy.sparse as spc
 
 __all__ = ['parse_cutest_like_problem',
            'parse_matlab_like_problem']
 
-xc_prev = None
-c_prev = None
-xa_prev = None
-A_prev = None
+
+class NonlinearFunction:
+    """Nonlinear Function f(x)"""
+    def __init__(self, n_vars, n_constr,
+                 constr, jac, hess):
+        self.n_vars = n_vars
+        self.n_constr = n_constr
+        self.constr = constr
+        self.jac = jac
+        self.hess = hess
+
+    def to_linear(self):
+        x = np.zeros(self.nvars)
+        b = -self.constr(x)
+        A = self.jac(x)
+        return LinearFunction(A, b)
+
+
+class LinearFunction:
+    """Linear Function f(x) = A x - b"""
+    def __init__(self, A, b):
+        self.n_constr, self.n_vars = np.shape(A)
+        if b.shape[0] != self.n_constr:
+            raise ValueError("Incompatibles `A` and `b` shapes")
+        self.A = A
+        self.b = b
+
+    def to_nonlinear(self):
+        def constr(x):
+            return self.A.dot(x) - self.b
+
+        def jac(x):
+            return self.A
+
+        return NonlinearFunction(self.n_vars, self.n_constr,
+                                 constr, jac, None)
+
+
+class MultipleCoordinates:
+    """A subvector of variables f(x) = x[list]"""
+    def __init__(self, var_list):
+        self.n_vars, = np.shape(var_list)
+        self.n_constr = np.int(np.sum(var_list))
+        self.var_list = var_list
+
+    def to_linear(self):
+        I = spc.eye(self.n_vars).tocsc()
+        A = I[self.var_list, :]
+        b = np.zeros(self.n_constr)
+        return LinearFunction(A, b)
+
+    def to_nonlinear(self):
+        def constr(x):
+            return x[self.var_list]
+
+        def jac(x):
+            I = spc.eye(self.n_vars).tocsc()
+            return I[self.var_list, :]
+
+        return NonlinearFunction(self.n_vars, self.n_constr,
+                                 constr, jac, None)
+
+
+
+
+def linear_contraints(A, b, op):
+    """Convert linear constraint to general format.
+
+    Converts a constraint:
+        A x  "op" b
+    to the general format:
+        g(x) <= 0
+        h(x) = 0
+    where "op" is a string:
+        - ">="
+        - "="
+        - "<="
+    """
+
+    return n_vars, n_ineq, constr_ineq, jac_ineq, \
+        n_eq, constr_eq, jac_eq, hess
+
 
 
 def parse_cutest_like_problem(
@@ -62,7 +141,7 @@ def parse_cutest_like_problem(
         # Scheme for avoiding evaluate the constraints
         # multiple times for the same value of x.
         global xc_prev, c_prev
-        if (xc_prev == x).all():
+        if np.array_equal(xc_prev, x):
             c = c_prev
         else:
             c = constr(x)
@@ -78,7 +157,7 @@ def parse_cutest_like_problem(
         # Scheme for avoiding evaluate the constraints
         # multiple times for the same value of x.
         global xc_prev, c_prev
-        if (xc_prev == x).all():
+        if np.array_equal(xc_prev, x):
             c = c_prev
         else:
             c = constr(x)
@@ -91,7 +170,7 @@ def parse_cutest_like_problem(
         # Scheme for avoiding evaluate the Jacobian
         # matrix multiple times for the same value of x.
         global xa_prev, A_prev
-        if (xa_prev == x).all():
+        if np.array_equal(xa_prev, x):
             A = A_prev
         else:
             A = jac(x)
@@ -110,7 +189,7 @@ def parse_cutest_like_problem(
         # Scheme for avoiding evaluate the Jacobian
         # matrix multiple times for the same value of x.
         global xa_prev, A_prev
-        if (xa_prev == x).all():
+        if np.array_equal(xa_prev, x):
             A = A_prev
         else:
             A = jac(x)
