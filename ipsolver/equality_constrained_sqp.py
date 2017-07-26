@@ -195,14 +195,17 @@ def equality_constrained_sqp(fun, grad, hess, constr, jac,
         # Compute update (normal + tangential steps).
         d = dn + dt
 
-        # Compute second order model: 1/2 d H d + g.T d + f.
+        # Compute second order model: 1/2 d H d + c.T d + f.
         quadratic_model = 1/2*(H.dot(d)).dot(d) + c.T.dot(d)
-        # Compute linearized constraint: l = A d + c.
+        # Compute linearized constraint: l = A d + b.
         linearized_constr = A.dot(d)+b
         # Compute new penalty parameter according to formula (3.52),
         # reference [1]_, p.891.
         vpred = norm(b) - norm(linearized_constr)
-        if vpred != 0:
+        # Guarantee `vpred` always positive,
+        # regardless of roundoff errors.
+        vpred = max(1e-12, vpred)
+        if quadratic_model > 0:
             new_penalty = quadratic_model / ((1-PENALTY_FACTOR)*vpred)
             penalty = max(penalty, new_penalty)
         # Compute predicted reduction according to formula (3.52),
