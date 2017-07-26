@@ -122,7 +122,7 @@ class BarrierSubproblem:
                          [self.jac_ineq(x), S]], "csc")
 
     def lagrangian_hessian_x(self, z, v):
-        """Returns Lagrangian Hessian (in relation to variables ``x``)"""
+        """Returns Lagrangian Hessian (in relation to `x`) -> Hx"""
         x = self.get_variables(z)
         # Get lagrange multipliers relatated to nonlinear equality constraints
         v_eq = v[:self.n_eq]
@@ -132,16 +132,16 @@ class BarrierSubproblem:
         return lagr_hess(x, v_eq, v_ineq)
 
     def lagrangian_hessian_s(self, z, v):
-        """Returns Lagrangian Hessian (in relation to slack variables ``s``)"""
+        """Returns scaled Lagrangian Hessian (in relation to`s`) -> S Hs S"""
         s = self.get_slack(z)
         # Using the primal formulation:
-        #     lagrangian_hessian_s = diag(1/s**2).
+        #     S Hs S = diag(s)*diag(barrier_parameter/s**2)*diag(s).
         # Reference [1]_ p. 882, formula (3.1)
-        primal = self.barrier_parameter/(s*s)
+        primal = self.barrier_parameter
         # Using the primal-dual formulation
-        #     lagrangian_hessian_s = diag(v/s)
+        #     S Hs S = diag(s)*diag(v/s)*diag(s)
         # Reference [1]_ p. 883, formula (3.11)
-        primal_dual = v[-self.n_ineq:]/s
+        primal_dual = v[-self.n_ineq:]*s
         # Uses the primal-dual formulation for
         # positives values of v_ineq, and primal
         # formulation for the remaining ones.
@@ -149,11 +149,10 @@ class BarrierSubproblem:
 
     def lagrangian_hessian(self, z, v):
         """Returns scaled Lagrangian Hessian"""
-        s = self.get_slack(z)
         # Compute Hessian in relation to x and s
         Hx = self.lagrangian_hessian_x(z, v)
         if self.n_ineq > 0:
-            Hs = self.lagrangian_hessian_s(z, v)*s*s
+            S_Hs_S = self.lagrangian_hessian_s(z, v)
 
         # The scaled Lagragian Hessian is:
         #     [ Hx    0    ]
@@ -162,7 +161,7 @@ class BarrierSubproblem:
             vec_x = self.get_variables(vec)
             vec_s = self.get_slack(vec)
             if self.n_ineq > 0:
-                return np.hstack((Hx.dot(vec_x), Hs*vec_s))
+                return np.hstack((Hx.dot(vec_x), S_Hs_S*vec_s))
             else:
                 return Hx.dot(vec_x)
         return LinearOperator((self.n_vars+self.n_ineq,
