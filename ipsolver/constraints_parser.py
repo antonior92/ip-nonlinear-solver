@@ -6,10 +6,10 @@ import scipy.sparse as spc
 __all__ = ['parse_cutest_like_problem',
            'parse_matlab_like_problem']
 
-xc_prev = None
-c_prev = None
-xa_prev = None
-A_prev = None
+xc = None
+c = None
+xa = None
+A = None
 
 
 def parse_cutest_like_problem(
@@ -61,13 +61,10 @@ def parse_cutest_like_problem(
     def constr_ineq(x):
         # Scheme for avoiding evaluate the constraints
         # multiple times for the same value of x.
-        global xc_prev, c_prev
-        if np.array_equal(xc_prev, x):
-            c = c_prev
-        else:
+        global xc, c
+        if not np.array_equal(xc, x):
             c = constr(x)
-            xc_prev = x
-            c_prev = c
+            xc = x
 
         return np.hstack((c[c_ub_finite] - c_ub[c_ub_finite],
                           c_lb[c_lb_finite] - c[c_lb_finite],
@@ -77,26 +74,20 @@ def parse_cutest_like_problem(
     def constr_eq(x):
         # Scheme for avoiding evaluate the constraints
         # multiple times for the same value of x.
-        global xc_prev, c_prev
-        if np.array_equal(xc_prev, x):
-            c = c_prev
-        else:
+        global xc, c
+        if not np.array_equal(xc, x):
             c = constr(x)
-            xc_prev = x
-            c_prev = c
+            xc = x
 
         return c[eq_list] - c_ub[eq_list]
 
     def jac_ineq(x):
         # Scheme for avoiding evaluate the Jacobian
         # matrix multiple times for the same value of x.
-        global xa_prev, A_prev
-        if np.array_equal(xa_prev, x):
-            A = A_prev
-        else:
+        global xa, A
+        if not np.array_equal(xa, x):
             A = jac(x)
-            xa_prev = x
-            A_prev = A
+            xa = x
 
         I = spc.eye(n_vars).tocsc()
         I_ub = I[ub_finite, :]
@@ -109,13 +100,10 @@ def parse_cutest_like_problem(
     def jac_eq(x):
         # Scheme for avoiding evaluate the Jacobian
         # matrix multiple times for the same value of x.
-        global xa_prev, A_prev
-        if np.array_equal(xa_prev, x):
-            A = A_prev
-        else:
+        global xa, A
+        if not np.array_equal(xa, x):
             A = jac(x)
-            xa_prev = x
-            A_prev = A
+            xa = x
 
         return A[eq_list, :]
 
@@ -126,8 +114,11 @@ def parse_cutest_like_problem(
         v[c_lb_finite] -= v_ineq[n_c_ub:n_c_ub+n_c_lb]
         return lagr_hess(x, v)
 
+    box_constraints = np.hstack((np.zeros(n_ineq, dtype=bool),
+                                np.ones(n_lb+n_ub, dtype=bool)))
+
     return fun, grad, new_lagr_hess, n_total_ineq, constr_ineq, \
-        jac_ineq, n_total_eq, constr_eq, jac_eq
+        jac_ineq, n_total_eq, constr_eq, jac_eq, box_constraints
 
 
 def parse_matlab_like_problem(
@@ -218,5 +209,8 @@ def parse_matlab_like_problem(
     def new_lagr_hess(x, v_eq, v_ineq):
         return lagr_hess(x, v_eq[:n_eq], v_ineq[:n_ineq])
 
+    box_constraints = np.hstack((np.zeros(n_ineq + n_lin_ineq, dtype=bool),
+                                np.ones(n_lb+n_ub, dtype=bool)))
+
     return fun, grad, new_lagr_hess, n_total_ineq, new_constr_ineq, \
-        new_jac_ineq, n_total_eq, new_constr_eq, new_jac_eq
+        new_jac_ineq, n_total_eq, new_constr_eq, new_jac_eq, box_constraints

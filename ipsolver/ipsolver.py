@@ -18,11 +18,22 @@ class BarrierSubproblem:
         minimize fun(x) - barrier_parameter*sum(log(s))
         subject to: constr_eq(x)     = 0
                   constr_ineq(x) + s = 0
+
+    References
+    ----------
+    .. [1] Byrd, Richard H., Mary E. Hribar, and Jorge Nocedal.
+           "An interior point algorithm for large-scale nonlinear
+           programming." SIAM Journal on Optimization 9.4 (1999): 877-900.
+    .. [2] Byrd, Richard H., Guanghui Liu, and Jorge Nocedal.
+           "On the local behavior of an interior point method for
+           nonlinear programming." Numerical analysis 1997 (1997): 37-56.
+    .. [3] Nocedal, Jorge, and Stephen J. Wright. "Numerical optimization"
+           Second Edition (2006).
     """
 
     def __init__(self, x0, fun, grad, lagr_hess, n_ineq, constr_ineq,
                  jac_ineq, n_eq, constr_eq, jac_eq, barrier_parameter,
-                 tolerance):
+                 tolerance, feasible_constr_list):
         # Compute number of variables
         self.n_vars, = np.shape(x0)
         # Store parameters
@@ -30,14 +41,38 @@ class BarrierSubproblem:
         self.fun = fun
         self.grad = grad
         self.lagr_hess = lagr_hess
-        self.constr_ineq = constr_ineq
+        self._constr_ineq = constr_ineq
         self.jac_ineq = jac_ineq
-        self.constr_eq = constr_eq
+        self._constr_eq = constr_eq
         self.jac_eq = jac_eq
         self.barrier_parameter = barrier_parameter
         self.tolerance = tolerance
         self.n_eq = n_eq
         self.n_ineq = n_ineq
+        self.feasible_constr_list = feasible_constr_list
+        # Auxiliar parameter
+        self._x_ineq = None
+        self._x_eq = None
+        self._c_ineq = None
+        self._c_eq = None
+
+    def constr_ineq(self, x):
+        """Value of inequality constraint at current iteration.
+
+        Avoid that multiple calls to constr_ineq cause
+        the constraint to be evaluated multiple times."""
+        if not np.array_equal(self._x_ineq, x):
+            self._c_ineq = self._constr_ineq(x)
+        return self._c_ineq
+
+    def constr_eq(self, x):
+        """Value of equality constraint at current iteration.
+
+        Avoid that multiple calls to constr_ineq cause
+        the constraint to be evaluated multiple times."""
+        if not np.array_equal(self._x_eq, x):
+            self._c_eq = self._constr_eq(x)
+        return self._c_eq
 
     def update(self, barrier_parameter, tolerance):
         self.barrier_parameter = barrier_parameter
@@ -63,7 +98,15 @@ class BarrierSubproblem:
         """
         x = self.get_variables(z)
         s = self.get_slack(z)
-        return self.fun(x) - self.barrier_parameter*np.sum(np.log(s))
+
+        # Use technique from Nocedal and Wright book, ref [3]_, p.576,
+        # to guarantee constraints from `feasible_constr_list`
+        # stay feasible along iterations.
+        c_ineq = self.constr_ineq(x)
+        s[self.feasible_constr_list] = -c_ineq[self.feasible_constr_list]
+        log_s = [np.log(s_i) if s_i > 0 else -np.inf for s_i in s]
+
+        return self.fun(x) - self.barrier_parameter*np.sum(log_s)
 
     def constraints(self, z):
         """Returns barrier problem constraints at given points.
@@ -97,9 +140,8 @@ class BarrierSubproblem:
     def gradient(self, z):
         """Returns scaled gradient.
 
-        Barrier scalled gradient
-        of the barrier problem by the previously
-        defined scaling factor:
+        Barrier scalled gradient  of the barrier problem
+        by the previously defined scaling factor:
             gradient = [             grad(x)             ]
                        [ -barrier_parameter*ones(n_ineq) ]
         """
@@ -177,14 +219,14 @@ class BarrierSubproblem:
         if (info["opt"] < self.tolerance
             and info["constr_violation"] < self.tolerance) \
            or info["niter"] > 1000 \
-           or info["trust_radius"] < 1e-20:
+           or info["trust_radius"] < 1e-16:
             return True
         else:
             return False
 
 
 def default_stop_criteria(info):
-    if (info["opt"] < 1e-8 and info["constr_violation"] < 1e-8) \
+    if (info["opt"] < 1e-7 and info["constr_violation"] < 1e-7) \
        or info["niter"] > 1000:
         return True
     else:
@@ -193,6 +235,7 @@ def default_stop_criteria(info):
 
 def ipsolver(fun, grad, lagr_hess, n_ineq, constr_ineq,
              jac_ineq, n_eq, constr_eq, jac_eq, x0,
+             feasible_constr_list=None,
              stop_criteria=default_stop_criteria,
              initial_barrier_parameter=0.1,
              initial_tolerance=0.1,
@@ -246,6 +289,11 @@ def ipsolver(fun, grad, lagr_hess, n_ineq, constr_ineq,
             jac_ineq(x) -> sparse matrix (or ndarray), shape (n_eq, n)
     x0 : array_like, shape (n,)
         Starting point.
+    feasible_constr_list : array_like (boolean), shape (n_ineq,)
+        List specifying inequality constraints. All the iterates generated
+        by the optimization algorithm the algorithm will be feasible with respect
+        to those constraints. It is important that the initial point ``x0`` respect
+        the specified constraint, otherwise the algorithm will just fail.
     stop_criteria: callable
         Functions that returns True when stop criteria is fulfilled:
             stop_criteria(info)
@@ -287,6 +335,8 @@ def ipsolver(fun, grad, lagr_hess, n_ineq, constr_ineq,
     .. [2] Byrd, Richard H., Guanghui Liu, and Jorge Nocedal.
            "On the local behavior of an interior point method for
            nonlinear programming." Numerical analysis 1997 (1997): 37-56.
+    .. [3] Nocedal, Jorge, and Stephen J. Wright. "Numerical optimization"
+           Second Edition (2006).
     """
     # BOUNDARY_PARAMETER controls the decrease on the slack
     # variables. Represents ``tau`` from [1]_ p.885, formula (3.18).
@@ -298,6 +348,9 @@ def ipsolver(fun, grad, lagr_hess, n_ineq, constr_ineq,
     # after each iteration
     TRUST_ENLARGEMENT = 5
 
+    # Default feasible_constr_list
+    if feasible_constr_list is None:
+        feasible_constr_list = np.zeros(n_ineq, bool)
     # Initial Values
     barrier_parameter = initial_barrier_parameter
     tolerance = initial_tolerance
@@ -307,7 +360,8 @@ def ipsolver(fun, grad, lagr_hess, n_ineq, constr_ineq,
     # Define barrier subproblem
     subprob = BarrierSubproblem(
         x0, fun, grad, lagr_hess, n_ineq, constr_ineq, jac_ineq,
-        n_eq, constr_eq, jac_eq, barrier_parameter, tolerance)
+        n_eq, constr_eq, jac_eq, barrier_parameter, tolerance,
+        feasible_constr_list)
     # Define initial parameter for the first iteration.
     z = subprob.z0()
     # Define trust region bounds

@@ -23,15 +23,15 @@ class TestIPSolver(TestCase):
 
         for p in list_of_problems:
             fun, grad, lagr_hess, n_ineq, constr_ineq, \
-                jac_ineq, n_eq, constr_eq, jac_eq \
+                jac_ineq, n_eq, constr_eq, jac_eq, box_constraints \
                 = parse_matlab_like_problem(
                     p.fun, p.grad, p.lagr_hess, p.n_vars, p.n_eq, p.n_ineq,
                     p.constr_ineq, p.jac_ineq, p.constr_eq, p.jac_eq, p.A_ineq,
                     p.b_ineq, p.A_eq, p.b_eq, p.lb, p.ub)
             x, info = ipsolver(
                 fun, grad, lagr_hess, n_ineq, constr_ineq,
-                jac_ineq, n_eq, constr_eq, jac_eq, p.x0)
+                jac_ineq, n_eq, constr_eq, jac_eq, p.x0, box_constraints)
             assert_array_less(info["opt"], 1e-5)
-            assert_array_less(info["constr_violation"], 1e-8)
+            assert_array_less(info["constr_violation"], 1e-7)
             if p.x_opt is not None:
-                assert_array_almost_equal(x, p.x_opt, decimal=5)
+                assert_array_almost_equal(x, p.x_opt, decimal=4)
