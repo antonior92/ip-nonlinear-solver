@@ -3,7 +3,7 @@
 from __future__ import division, print_function, absolute_import
 import scipy.sparse as spc
 from .projections import projections
-from .qp_subproblem import qp_subproblem, box_intersections
+from .qp_subproblem import modified_dogleg, projected_cg, box_intersections
 import numpy as np
 from numpy.linalg import norm
 
@@ -141,6 +141,8 @@ def equality_constrained_sqp(fun, grad, hess, constr, jac,
     MAX_TRUST_REDUCTION = 0.5
     MIN_TRUST_REDUCTION = 0.1
     SOC_THRESHOLD = 0.1
+    TR_FACTOR = 0.8  # Zeta from formula (3.21), reference [1]_, p.885.
+    BOX_FACTOR = 0.5
 
     n, = np.shape(x0)  # Number of parameters
 
@@ -188,10 +190,32 @@ def equality_constrained_sqp(fun, grad, hess, constr, jac,
         if compute_hess:
             H = hess(x, v)
 
-        # Solve QP subproblem
-        dn, dt, info_cg = qp_subproblem(H, c, A, Z, Y, b,
-                                        trust_radius,
-                                        trust_lb, trust_ub)
+        # Normal Step - `dn`
+        # minimize 1/2*||A dn + b||^2
+        # subject to:
+        # ||dn|| <= TR_FACTOR * trust_radius
+        # BOX_FACTOR * lb <= dn <= BOX_FACTOR * ub.
+        dn = modified_dogleg(A, Y, b,
+                             TR_FACTOR*trust_radius,
+                             BOX_FACTOR*trust_lb,
+                             BOX_FACTOR*trust_ub)
+
+        # Tangential Step - `dn`
+        # Solve the QP problem:
+        # minimize 1/2 dt.T H dt + dt.T (H dn + c)
+        # subject to:
+        # A dt = 0
+        # ||dt|| <= sqrt(trust_radius**2 - ||dn||**2)
+        # lb - dn <= dt <= ub - dn
+        c_t = H.dot(dn) + c
+        b_t = np.zeros_like(b)
+        trust_radius_t = np.sqrt(trust_radius**2 - np.linalg.norm(dn)**2)
+        lb_t = trust_lb- dn
+        ub_t = trust_ub - dn
+        dt, info_cg = projected_cg(H, c_t, Z, Y, b_t,
+                                   trust_radius_t,
+                                   lb_t, ub_t)
+
         # Compute update (normal + tangential steps).
         d = dn + dt
 
@@ -204,7 +228,7 @@ def equality_constrained_sqp(fun, grad, hess, constr, jac,
         vpred = norm(b) - norm(linearized_constr)
         # Guarantee `vpred` always positive,
         # regardless of roundoff errors.
-        vpred = max(1e-12, vpred)
+        vpred = max(1e-16, vpred)
         if quadratic_model > 0:
             new_penalty = quadratic_model / ((1-PENALTY_FACTOR)*vpred)
             penalty = max(penalty, new_penalty)
