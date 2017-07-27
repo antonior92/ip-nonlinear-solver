@@ -307,6 +307,10 @@ def inside_box_boundaries(x, lb, ub):
     """Check if lb <= x <= ub."""
     return (lb <= x).all() and (x <= ub).all()
 
+def reinforce_box_boundaries(x, lb, ub):
+    """Return clipped value of x"""
+    return np.minimum(np.maximum(x, lb), ub)
+
 
 def modified_dogleg(A, Y, b, trust_radius, lb, ub):
     """Approximately  minimize ``1/2*|| A x + b ||^2`` inside trust-region.
@@ -555,9 +559,13 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
                 # Find intersection with constraints
                 _, alpha, intersect = box_sphere_intersections(
                     x, p, lb, ub, trust_radius, entire_line=True)
-
+                # Update solution
                 if intersect:
                     x = x + alpha*p
+                # Reinforce variables are inside box constraints.
+                # This is only necessary because of roundoff errors.
+                x = reinforce_box_boundaries(x, lb, ub)
+                # Atribute information
                 stop_cond = 3
                 hits_boundary = True
                 break
@@ -571,11 +579,17 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
             # Find intersection with box constraints
             _, theta, intersect = box_sphere_intersections(x, alpha*p, lb, ub,
                                                            trust_radius)
+            # Update solution
             if intersect:
                 x = x + theta*alpha*p
+            # Reinforce variables are inside box constraints.
+            # This is only necessary because of roundoff errors.
+            x = reinforce_box_boundaries(x, lb, ub)
+            # Atribute information
             stop_cond = 2
             hits_boundary = True
             break
+
         # Check if ``x`` is inside the box and start counter if it is not.
         if inside_box_boundaries(x_next, lb, ub):
             counter = 0
@@ -587,6 +601,9 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
                                                            trust_radius)
             if intersect:
                 last_feasible_x = x + theta*alpha*p
+                # Reinforce variables are inside box constraints.
+                # This is only necessary because of roundoff errors.
+                last_feasible_x = reinforce_box_boundaries(last_feasible_x, lb, ub)
                 counter = 0
         # Stop after too many infeasible (regarding box constraints) iteration.
         if counter > max_infeasible_iter:
@@ -617,7 +634,6 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
             'hits_boundary': hits_boundary}
     if return_all:
         info['allvecs'] = allvecs
-
     return x, info
 
 
