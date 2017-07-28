@@ -4,6 +4,7 @@ from __future__ import division, print_function, absolute_import
 from scipy.sparse import (linalg, bmat, csc_matrix)
 from math import copysign
 import numpy as np
+from numpy.linalg import norm
 
 __all__ = [
     'eqp_kktfact',
@@ -95,7 +96,7 @@ def sphere_intersections(z, d, trust_radius,
         intersection.
     """
     # Special case when d=0
-    if np.linalg.norm(d) == 0:
+    if norm(d) == 0:
         return 0, 0, False
     # Check for inf trust_radius
     if np.isinf(trust_radius):
@@ -190,7 +191,7 @@ def box_intersections(z, d, lb, ub,
     lb = np.asarray(lb)
     ub = np.asarray(ub)
     # Special case when d=0
-    if np.linalg.norm(d) == 0:
+    if norm(d) == 0:
         return 0, 0, False
 
     # Get values for which d==0
@@ -362,7 +363,7 @@ def modified_dogleg(A, Y, b, trust_radius, lb, ub):
     newton_point = -Y.dot(b)
     # Check for interior point
     if inside_box_boundaries(newton_point, lb, ub)  \
-       and np.linalg.norm(newton_point) <= trust_radius:
+       and norm(newton_point) <= trust_radius:
         x = newton_point
         return x
 
@@ -401,7 +402,7 @@ def modified_dogleg(A, Y, b, trust_radius, lb, ub):
     x2 = z + alpha*p
 
     # Return the best solution among x1 and x2.
-    if np.linalg.norm(A.dot(x1) + b) < np.linalg.norm(A.dot(x2) + b):
+    if norm(A.dot(x1) + b) < norm(A.dot(x2) + b):
         return x1
     else:
         return x2
@@ -503,10 +504,10 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
         allvecs = [x]
     # Values for the first iteration
     H_p = H.dot(p)
-    rt_g = r.dot(g)
+    rt_g = norm(g)**2  # g.T g = r.T Z g = r.T g (ref [1]_ p.1389)
 
     # If x > trust-region the problem does not have a solution.
-    tr_distance = trust_radius - np.linalg.norm(x)
+    tr_distance = trust_radius - norm(x)
     if tr_distance < 0:
         raise ValueError("Trust region problem does not have a solution.")
     # If x == trust_radius, then x is the solution
@@ -616,14 +617,14 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
         # Project residual g+ = Z r+
         g_next = Z.dot(r_next)
         # Compute conjugate direction step d
-        rt_g_next = r_next.dot(g_next)
+        rt_g_next = norm(g_next)**2  # g.T g = r.T Z g = r.T g (ref [1]_ p.1389)
         beta = rt_g_next / rt_g
         p = - g_next + beta*p
         # Prepare for next iteration
         x = x_next
         g = g_next
         r = g_next
-        rt_g = r.dot(g)
+        rt_g = norm(g)**2  # g.T g = r.T Z g = r.T g (ref [1]_ p.1389)
         H_p = H.dot(p)
 
     if not inside_box_boundaries(x, lb, ub):
