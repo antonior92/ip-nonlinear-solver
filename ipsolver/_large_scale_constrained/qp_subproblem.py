@@ -4,6 +4,7 @@ from __future__ import division, print_function, absolute_import
 from scipy.sparse import (linalg, bmat, csc_matrix)
 from math import copysign
 import numpy as np
+from numpy.linalg import norm
 
 __all__ = [
     'eqp_kktfact',
@@ -12,8 +13,7 @@ __all__ = [
     'box_sphere_intersections',
     'inside_box_boundaries',
     'modified_dogleg',
-    'projected_cg',
-    'qp_subproblem'
+    'projected_cg'
 ]
 
 
@@ -96,7 +96,7 @@ def sphere_intersections(z, d, trust_radius,
         intersection.
     """
     # Special case when d=0
-    if np.linalg.norm(d) == 0:
+    if norm(d) == 0:
         return 0, 0, False
     # Check for inf trust_radius
     if np.isinf(trust_radius):
@@ -191,7 +191,7 @@ def box_intersections(z, d, lb, ub,
     lb = np.asarray(lb)
     ub = np.asarray(ub)
     # Special case when d=0
-    if np.linalg.norm(d) == 0:
+    if norm(d) == 0:
         return 0, 0, False
 
     # Get values for which d==0
@@ -308,6 +308,11 @@ def inside_box_boundaries(x, lb, ub):
     return (lb <= x).all() and (x <= ub).all()
 
 
+def reinforce_box_boundaries(x, lb, ub):
+    """Return clipped value of x"""
+    return np.minimum(np.maximum(x, lb), ub)
+
+
 def modified_dogleg(A, Y, b, trust_radius, lb, ub):
     """Approximately  minimize ``1/2*|| A x + b ||^2`` inside trust-region.
 
@@ -359,7 +364,7 @@ def modified_dogleg(A, Y, b, trust_radius, lb, ub):
     newton_point = -Y.dot(b)
     # Check for interior point
     if inside_box_boundaries(newton_point, lb, ub)  \
-       and np.linalg.norm(newton_point) <= trust_radius:
+       and norm(newton_point) <= trust_radius:
         x = newton_point
         return x
 
@@ -398,7 +403,7 @@ def modified_dogleg(A, Y, b, trust_radius, lb, ub):
     x2 = z + alpha*p
 
     # Return the best solution among x1 and x2.
-    if np.linalg.norm(A.dot(x1) + b) < np.linalg.norm(A.dot(x2) + b):
+    if norm(A.dot(x1) + b) < norm(A.dot(x2) + b):
         return x1
     else:
         return x2
@@ -500,10 +505,10 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
         allvecs = [x]
     # Values for the first iteration
     H_p = H.dot(p)
-    rt_g = r.dot(g)
+    rt_g = norm(g)**2  # g.T g = r.T Z g = r.T g (ref [1]_ p.1389)
 
     # If x > trust-region the problem does not have a solution.
-    tr_distance = trust_radius - np.linalg.norm(x)
+    tr_distance = trust_radius - norm(x)
     if tr_distance < 0:
         raise ValueError("Trust region problem does not have a solution.")
     # If x == trust_radius, then x is the solution
@@ -555,9 +560,13 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
                 # Find intersection with constraints
                 _, alpha, intersect = box_sphere_intersections(
                     x, p, lb, ub, trust_radius, entire_line=True)
-
+                # Update solution
                 if intersect:
                     x = x + alpha*p
+                # Reinforce variables are inside box constraints.
+                # This is only necessary because of roundoff errors.
+                x = reinforce_box_boundaries(x, lb, ub)
+                # Atribute information
                 stop_cond = 3
                 hits_boundary = True
                 break
@@ -571,11 +580,17 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
             # Find intersection with box constraints
             _, theta, intersect = box_sphere_intersections(x, alpha*p, lb, ub,
                                                            trust_radius)
+            # Update solution
             if intersect:
                 x = x + theta*alpha*p
+            # Reinforce variables are inside box constraints.
+            # This is only necessary because of roundoff errors.
+            x = reinforce_box_boundaries(x, lb, ub)
+            # Atribute information
             stop_cond = 2
             hits_boundary = True
             break
+
         # Check if ``x`` is inside the box and start counter if it is not.
         if inside_box_boundaries(x_next, lb, ub):
             counter = 0
@@ -587,6 +602,10 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
                                                            trust_radius)
             if intersect:
                 last_feasible_x = x + theta*alpha*p
+                # Reinforce variables are inside box constraints.
+                # This is only necessary because of roundoff errors.
+                last_feasible_x = reinforce_box_boundaries(last_feasible_x,
+                                                           lb, ub)
                 counter = 0
         # Stop after too many infeasible (regarding box constraints) iteration.
         if counter > max_infeasible_iter:
@@ -600,14 +619,14 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
         # Project residual g+ = Z r+
         g_next = Z.dot(r_next)
         # Compute conjugate direction step d
-        rt_g_next = r_next.dot(g_next)
+        rt_g_next = norm(g_next)**2  # g.T g = r.T g (ref [1]_ p.1389)
         beta = rt_g_next / rt_g
         p = - g_next + beta*p
         # Prepare for next iteration
         x = x_next
         g = g_next
         r = g_next
-        rt_g = r.dot(g)
+        rt_g = norm(g)**2  # g.T g = r.T Z g = r.T g (ref [1]_ p.1389)
         H_p = H.dot(p)
 
     if not inside_box_boundaries(x, lb, ub):
@@ -617,128 +636,4 @@ def projected_cg(H, c, Z, Y, b, trust_radius=np.inf,
             'hits_boundary': hits_boundary}
     if return_all:
         info['allvecs'] = allvecs
-
     return x, info
-
-
-def qp_subproblem(H, c, A, Z, Y, b, trust_radius,
-                  lb=None, ub=None, tr_factor=0.8,
-                  box_factor=0.5, cg_parameters={}):
-    """Solve (approximately) trust-region EQP problem using projected CG.
-
-    Solve problem:
-
-        minimize 1/2 x.T H x + x.T c
-        subject to: A x + b = r
-                    ||x|| <= trust_radius
-                    lb <= x <= ub
-
-    For ``r`` chosen in such way the problem is feasible.
-
-    Parameters
-    ----------
-    H : LinearOperator (or sparse matrix or ndarray), shape (n, n)
-        Operator for computing ``H v``.
-    c : array_like, shape (n,)
-        Gradient of the quadratic objective function.
-    A : LinearOperator (or sparse matrix or ndarray), shape (m, n)
-        Matrix ``A`` in the equality constraint. It should have
-        dimension ``(m, n)`` such that ``m < n``.
-    Z : LinearOperator (or sparse matrix or ndarray), shape (n, n)
-        Operator for projecting ``x`` into the null space of A.
-    Y : LinearOperator,  sparse matrix, ndarray, shape (n, m)
-        Operator that, for a given a vector ``b``, compute smallest
-        norm solution of ``A x + b = 0``.
-    b : array_like, shape (m,)
-        Right-hand side of the constraint equation.
-    trust_radius : float
-        Trust radius to be considered. By default uses ``trust_radius=inf``,
-        which means no trust radius at all.
-    lb : array_like, shape (n,), optional
-        Lower bounds to each one of the components of ``x``.
-        If ``lb[i] = -Inf`` the lower bound for the i-th
-        component is just ignored (default).
-    ub : array_like, shape (n, ), optional
-        Upper bounds to each one of the components of ``x``.
-        If ``ub[i] = Inf`` the upper bound for the i-th
-        component is just ignored (default).
-    tr_factor : float, optional
-        Value between 0 and 1 used to weight the trust radius.
-        Default is 0.8.
-    box_factor : float, optional
-        Value between 0 and 1 used to weight the box constraints.
-        Default is 0.5.
-    cg_parameters : Dict
-        Dictionary containing parameters for the CG procedure:
-
-            - tol : Tolerance used to interrupt the algorithm.
-            - max_inter : Maximum algorithm iterations. Where
-                ``max_inter <= n-m``. By default uses
-                ``max_iter = n-m``.
-            - max_infeasible_iter : int, optional
-                Maximum infeasible (regarding box
-                constraints) iterations the
-                algorithm is allowed to take.
-                By default uses
-                ``max_infeasible_iter = n-m``.
-            - return_all : bool, optional
-                When ``True`` return the list of all
-                vectors through the iterations.
-
-    Returns
-    -------
-    x_n : array_like, shape (n,)
-        Normal step.
-    x_t : array_like, shape (n,)
-        Tangential step.
-    info_cg : Dict
-        Dictionary containing information about the CG procedure:
-
-            - niter : Number of CG iterations.
-            - stop_cond : Reason for CG algorithm termination:
-                1. Iteration limit was reached;
-                2. Reached the trust-region boundary;
-                3. Negative curvature detected;
-                4. Tolerance was satisfied.
-            - allvecs : List containing all intermediary vectors
-                of CG (optional).
-            - hits_boundary : True if the proposed step is on the boundary
-                of the trust region.
-    """
-    n, = np.shape(c)  # Number of parameters
-    m, = np.shape(b)  # Number of constraints
-
-    # Set default lower and upper bounds.
-    if lb is None:
-        lb = np.full(n, -np.inf)
-    if ub is None:
-        ub = np.full(n, np.inf)
-
-    # *** Normal step ***
-    # Compute minimizer of 1/2*||A x + b||^2 subject to
-    # the constraints: ||x|| <=  tr_factor * trust_radius
-    # box_factor * lb <= x <= box_factor * ub.
-    x_n = modified_dogleg(A, Y, b,
-                          tr_factor*trust_radius,
-                          box_factor*lb,
-                          box_factor*ub)
-
-    # *** Tangential Step ***
-    # Solve the problem:
-    # minimize 1/2 x_t.T H x_t + x_t.T (c + H x_n)
-    # subject to:
-    # A x_t = 0
-    # ||x_t|| <= trust_radius - ||x_n||
-    # lb - x_n <= x_t <= ub - x_n
-    # (x_t -> tangential step, x_n -> normal step).
-    c_t = H.dot(x_n) + c
-    b_t = np.zeros(m)
-    trust_radius_t = np.sqrt(trust_radius**2 - np.linalg.norm(x_n)**2)
-    lb_t = lb - x_n
-    ub_t = ub - x_n
-    x_t, info_cg = projected_cg(H, c_t, Z, Y, b_t,
-                                trust_radius_t,
-                                lb_t, ub_t,
-                                **cg_parameters)
-
-    return x_n, x_t, info_cg

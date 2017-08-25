@@ -1,12 +1,23 @@
+from __future__ import division, print_function, absolute_import
 import numpy as np
+import scipy.linalg
 from scipy.sparse import csc_matrix
-from ipsolver import projections, orthogonality
+from ipsolver._large_scale_constrained.projections \
+    import projections, orthogonality
 from numpy.testing import (TestCase, assert_array_almost_equal,
                            assert_array_equal, assert_array_less,
                            assert_raises, assert_equal, assert_,
                            run_module_suite, assert_allclose, assert_warns,
                            dec)
-from scipy.linalg import block_diag
+try:
+    from sksparse.cholmod import cholesky_AAt
+    sksparse_available = True
+    available_sparse_methods = ("NormalEquation", "AugmentedSystem")
+except ImportError:
+    import warnings
+    sksparse_available = False
+    available_sparse_methods = ("AugmentedSystem",)
+available_dense_methods = ('QRFactorization', 'SVDFactorization')
 
 
 class TestProjections(TestCase):
@@ -21,7 +32,7 @@ class TestProjections(TestCase):
                        [1, 10, 3, 0, 1, 6, 7, 8],
                        [1.12, 10, 0, 0, 100000, 6, 0.7, 8])
 
-        for method in ("NormalEquation", "AugmentedSystem"):
+        for method in available_sparse_methods:
             Z, LS, _ = projections(A, method)
             for z in test_points:
                 # Test if x is in the null_space
@@ -31,21 +42,20 @@ class TestProjections(TestCase):
                 assert_array_almost_equal(orthogonality(A, x), 0)
                 # Test if x is the least square solution
                 x = LS.matvec(z)
-                x2 = np.linalg.lstsq(At_dense, z)[0]
+                x2 = scipy.linalg.lstsq(At_dense, z)[0]
                 assert_array_almost_equal(x, x2)
 
     def test_iterative_refinements_sparse(self):
         A_dense = np.array([[1, 2, 3, 4, 0, 5, 0, 7],
                             [0, 8, 7, 0, 1, 5, 9, 0],
                             [1, 0, 0, 0, 0, 1, 2, 3]])
-        At_dense = A_dense.T
         A = csc_matrix(A_dense)
         test_points = ([1, 2, 3, 4, 5, 6, 7, 8],
                        [1, 10, 3, 0, 1, 6, 7, 8],
                        [1.12, 10, 0, 0, 100000, 6, 0.7, 8],
                        [1, 0, 0, 0, 0, 1, 2, 3+1e-10])
 
-        for method in ("NormalEquation", "AugmentedSystem"):
+        for method in available_sparse_methods:
             Z, LS, _ = projections(A, method, orth_tol=1e-18, max_refin=100)
             for z in test_points:
                 # Test if x is in the null_space
@@ -58,13 +68,12 @@ class TestProjections(TestCase):
         A_dense = np.array([[1, 2, 3, 4, 0, 5, 0, 7],
                             [0, 8, 7, 0, 1, 5, 9, 0],
                             [1, 0, 0, 0, 0, 1, 2, 3]])
-        At_dense = A_dense.T
         A = csc_matrix(A_dense)
         test_points = ([1, 2, 3],
                        [1, 10, 3],
                        [1.12, 10, 0])
 
-        for method in ('NormalEquation', 'AugmentedSystem'):
+        for method in available_sparse_methods:
             _, _, Y = projections(A, method)
             for z in test_points:
                 # Test if x is solution of A x = z
@@ -84,7 +93,7 @@ class TestProjections(TestCase):
                        [1, 10, 3, 0, 1, 6, 7, 8],
                        [1.12, 10, 0, 0, 100000, 6, 0.7, 8])
 
-        for method in ("QRFactorization",):
+        for method in available_dense_methods:
             Z, LS, _ = projections(A, method)
             for z in test_points:
                 # Test if x is in the null_space
@@ -94,7 +103,7 @@ class TestProjections(TestCase):
                 assert_array_almost_equal(orthogonality(A, x), 0)
                 # Test if x is the least square solution
                 x = LS.matvec(z)
-                x2 = np.linalg.lstsq(At, z)[0]
+                x2 = scipy.linalg.lstsq(At, z)[0]
                 assert_array_almost_equal(x, x2)
 
     def test_compare_dense_and_sparse(self):
@@ -137,7 +146,7 @@ class TestProjections(TestCase):
                        [1, 10, 3, 0, 1, 6, 7, 8],
                        [1, 0, 0, 0, 0, 1, 2, 3+1e-10])
 
-        for method in ("QRFactorization",):
+        for method in available_dense_methods:
             Z, LS, _ = projections(A, method, orth_tol=1e-18, max_refin=10)
             for z in test_points:
                 # Test if x is in the null_space
@@ -154,7 +163,7 @@ class TestProjections(TestCase):
                        [1, 10, 3],
                        [1.12, 10, 0])
 
-        for method in ('QRFactorization',):
+        for method in available_dense_methods:
             _, _, Y = projections(A, method)
             for z in test_points:
                 # Test if x is solution of A x = z
@@ -179,7 +188,7 @@ class TestOrthogonality(TestCase):
                         [697.92794044, -4091.65114008,
                          -3327.42316335, 836.86906951,
                          99434.98929065, -1285.37653682,
-                         -4109.21503806,   2935.29289083])
+                         -4109.21503806, 2935.29289083])
         test_expected_orth = (0, 0)
 
         for i in range(len(test_vectors)):
@@ -199,7 +208,7 @@ class TestOrthogonality(TestCase):
                         [697.92794044, -4091.65114008,
                          -3327.42316335, 836.86906951,
                          99434.98929065, -1285.37653682,
-                         -4109.21503806,   2935.29289083])
+                         -4109.21503806, 2935.29289083])
         test_expected_orth = (0, 0)
 
         for i in range(len(test_vectors)):

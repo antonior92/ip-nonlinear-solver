@@ -1,19 +1,20 @@
 import numpy as np
 from scipy.sparse import csc_matrix
-from ipsolver import (eqp_kktfact,
-                      projections,
-                      projected_cg,
-                      box_intersections,
-                      sphere_intersections,
-                      box_sphere_intersections,
-                      modified_dogleg,
-                      qp_subproblem,
-                      inside_box_boundaries)
+from ipsolver._large_scale_constrained.qp_subproblem \
+    import (eqp_kktfact,
+            projected_cg,
+            box_intersections,
+            sphere_intersections,
+            box_sphere_intersections,
+            modified_dogleg)
+from ipsolver._large_scale_constrained.projections \
+    import projections
 from numpy.testing import (TestCase, assert_array_almost_equal,
                            assert_array_equal, assert_array_less,
-                           assert_raises, assert_equal, assert_,
+                           assert_equal, assert_,
                            run_module_suite, assert_allclose, assert_warns,
                            dec)
+import pytest
 
 
 class TestEQPDirectFactorization(TestCase):
@@ -153,7 +154,7 @@ class TestBoxBoundariesIntersections(TestCase):
 
         # Inicial point on the boundary
         ta, tb, intersect = box_intersections([2, 2], [0, 1],
-                                                         [-2, -2], [2, 2])
+                                              [-2, -2], [2, 2])
         assert_array_almost_equal([ta, tb], [0, 0])
         assert_equal(intersect, True)
 
@@ -467,8 +468,8 @@ class TestProjectCG(TestCase):
         b = -np.array([3, 0])
         trust_radius = 1
         Z, _, Y = projections(A)
-        assert_raises(ValueError, projected_cg, H, c,
-                      Z, Y, b, trust_radius=trust_radius)
+        with pytest.raises(ValueError):
+            projected_cg(H, c, Z, Y, b, trust_radius=trust_radius)
 
     def test_trust_region_barely_feasible(self):
         H = csc_matrix([[6, 2, 1, 3],
@@ -517,7 +518,8 @@ class TestProjectCG(TestCase):
         c = np.array([-2, -3, -3, 1])
         b = -np.array([3, 0])
         Z, _, Y = projections(A)
-        assert_raises(ValueError, projected_cg, H, c, Z, Y, b, tol=0)
+        with pytest.raises(ValueError):
+            projected_cg(H, c, Z, Y, b, tol=0)
 
     def test_negative_curvature(self):
         H = csc_matrix([[1, 2, 1, 3],
@@ -645,107 +647,3 @@ class TestProjectCG(TestCase):
         assert_equal(info["stop_cond"], 3)
         assert_equal(info["hits_boundary"], True)
         assert_array_almost_equal(x[2], 100)
-
-
-class TestQPSubproblem(TestCase):
-
-    def test_feasible_problem(self):
-        H = csc_matrix([[6, 2, 1, 3],
-                        [2, 5, 2, 4],
-                        [1, 2, 4, 5],
-                        [3, 4, 5, 7]])
-        A = csc_matrix([[1, 0, 1, 0],
-                        [0, 1, 1, 1]])
-        c = np.array([-2, -3, -3, 1])
-        b = -np.array([3, 0])
-        trust_radius = 3
-        Z, _, Y = projections(A)
-        x_n, x_t, info = qp_subproblem(H, c, A, Z, Y, b,
-                                       trust_radius,
-                                       tr_factor=1)
-        x_pcg, info_pcg = projected_cg(H, c, Z, Y, b,
-                                       trust_radius)
-        x = x_n + x_t
-        r = A.dot(x_n) + b
-        assert_array_almost_equal(r, np.zeros(2))
-        assert_array_almost_equal(x, x_pcg)
-        assert_equal(info["hits_boundary"], info_pcg["hits_boundary"])
-        assert_equal(info, info_pcg)
-        assert_array_almost_equal(np.linalg.norm(x) - trust_radius, 0)
-        assert_array_almost_equal(A.dot(x)+b, r)
-
-    def test_feasible_problem_with_box_constr(self):
-        H = csc_matrix([[6, 2, 1, 3],
-                        [2, 5, 2, 4],
-                        [1, 2, 4, 5],
-                        [3, 4, 5, 7]])
-        A = csc_matrix([[1, 0, 1, 0],
-                        [0, 1, 1, 1]])
-        c = np.array([-2, -3, -3, 1])
-        b = -np.array([3, 0])
-        trust_radius = 3
-        lb = np.array([-1, -0.7, -1, -1.5])
-        ub = np.array([1.9, np.inf, np.inf, np.inf])
-        Z, _, Y = projections(A)
-        x_n, x_t, info = qp_subproblem(H, c, A, Z, Y, b,
-                                       trust_radius,
-                                       lb, ub,
-                                       tr_factor=1,
-                                       box_factor=1)
-        x_pcg, info_pcg = projected_cg(H, c, Z, Y, b,
-                                       trust_radius, lb, ub)
-        x = x_n + x_t
-        r = A.dot(x_n) + b
-        assert_array_almost_equal(r, np.zeros(2))
-        assert_array_almost_equal(x, x_pcg)
-        assert_equal(info["hits_boundary"], info_pcg["hits_boundary"])
-        assert_equal(info, info_pcg)
-        assert_array_almost_equal(A.dot(x)+b, r)
-        assert_(np.linalg.norm(x) <= trust_radius)
-        assert_(inside_box_boundaries(x, lb, ub))
-
-    def test_infeasible_problem(self):
-        H = csc_matrix([[6, 2, 1, 3],
-                        [2, 5, 2, 4],
-                        [1, 2, 4, 5],
-                        [3, 4, 5, 7]])
-        A = csc_matrix([[1, 0, 1, 0],
-                        [0, 1, 1, 1]])
-        c = np.array([-2, -3, -3, 1])
-        b = -np.array([3, 0])
-        trust_radius = 2
-        Z, _, Y = projections(A)
-        x_n, x_t, info = qp_subproblem(H, c, A, Z, Y, b,
-                                                         trust_radius,
-                                                         tr_factor=1,
-                                                         box_factor=1)
-        x = x_n + x_t
-        r = A.dot(x_n) + b
-        assert_raises(ValueError, projected_cg, H, c, Z, Y, b,
-                      trust_radius)
-        assert_array_less(0, np.linalg.norm(r))
-        assert_array_almost_equal(A.dot(x)+b, r)
-        assert_(np.linalg.norm(x) <= trust_radius)
-
-    def test_infeasible_problem_with_box_constr(self):
-        H = csc_matrix([[6, 2, 1, 3],
-                        [2, 5, 2, 4],
-                        [1, 2, 4, 5],
-                        [3, 4, 5, 7]])
-        A = csc_matrix([[1, 0, 1, 0],
-                        [0, 1, 1, 1]])
-        c = np.array([-2, -3, -3, 1])
-        b = -np.array([3, 0])
-        trust_radius = 3
-        lb = np.array([-1, -0.7, -1, -1.5])
-        ub = np.array([0.7, np.inf, np.inf, np.inf])
-        Z, _, Y = projections(A)
-        x_n, x_t, info = qp_subproblem(H, c, A, Z, Y, b,
-                                                         trust_radius, lb,
-                                                         ub)
-        x = x_n + x_t
-        r = A.dot(x_n) + b
-        assert_array_less(0, np.linalg.norm(r))
-        assert_array_almost_equal(A.dot(x)+b, r)
-        assert_(np.linalg.norm(x) <= trust_radius)
-        assert_(inside_box_boundaries(x, lb, ub))

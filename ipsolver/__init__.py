@@ -1,10 +1,9 @@
 """Interior point solver."""
 
-from .qp_subproblem import *
-from .projections import *
-from .equality_constrained_sqp import *
-from .ipsolver import *
-from .constraints_parser import *
+from ._minimize_constrained import minimize_constrained
+from ._constraints import (NonlinearConstraint,
+                           LinearConstraint,
+                           BoxConstraint)
 
-
-__all__ = [s for s in dir() if not s.startswith('_')]
+all = ["minimize_constrained", "NonlinearConstraint",
+       "LinearConstraint", "BoxConstraint"]
