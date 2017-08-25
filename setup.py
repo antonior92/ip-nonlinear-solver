@@ -10,5 +10,5 @@ setup(name='ip-nonlinear-solver',
       description='A trust-region interior-point method for general nonlinear programing problems.',
       author='Antonio Horta Ribeiro',
       author_email='antonior92@gmail.com',
-      ext_modules=cythonize('ipsolver/_group_columns.pyx'),
+      ext_modules=ext_module,
       packages=['ipsolver'])
