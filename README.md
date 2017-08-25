@@ -3,8 +3,13 @@
 [![Join the chat at https://gitter.im/ip-nonlinear-solver/GSoC2017](https://badges.gitter.im/ip-nonlinear-solver/GSoC2017.svg)](https://gitter.im/ip-nonlinear-solver/GSoC2017?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 A trust-region interior-point method for general nonlinear programing problems. The implemetation
-is part my GSoC project for Scipy.
+is part my GSoC project for Scipy. A series of blog post describe different aspects of the algorithm
+and its use  ([link](https://antonior92.github.io/tags/#gsoc-2017)).
 
+The implementation can be found on the separate repository and is being
+integrated to SciPy through the pull request:
+
+[https://github.com/scipy/scipy/pull/7729](https://github.com/scipy/scipy/pull/7729)
 
 
 ## Instalation Guide
@@ -42,7 +47,7 @@ The code for solving this problem is presented bellow:
 
 ```Python
 # Example
-from __future__ import division, print_function, absolute_import
+from __future__ import division
 import numpy as np
 from ipsolver import minimize_constrained, NonlinearConstraint, BoxConstraint
 
@@ -72,7 +77,7 @@ can be specified using the classes [``NonlinearConstraint``](https://github.com/
 [``LinearConstraint``](https://github.com/antonior92/ip-nonlinear-solver#LinearConstraint) and [``BoxConstraint``](https://github.com/antonior92/ip-nonlinear-solver#BoxConstraint).
 
 
-### <a name="minimize_constrained"></a> ``minimize_constrained``
+### ``minimize_constrained``
 
 ```
 minimize_constrained(fun, x0, grad, hess='2-point', constraints=(),
@@ -352,7 +357,7 @@ minimize_constrained(fun, x0, grad, hess='2-point', constraints=(),
            Optimization 8.3 (1998): 682-706.
 ```
 
-### <a name="NonlinearConstraint"></a> ``NonlinearConstraint``
+### ``NonlinearConstraint``
 
 ```
 NonlinearConstraint(fun, kind, jac, hess='2-point', enforce_feasibility=False)
@@ -422,7 +427,7 @@ NonlinearConstraint(fun, kind, jac, hess='2-point', enforce_feasibility=False)
         is False.
 ```
 
-### <a name="LinearConstraint"></a> ``LinearConstraint``
+### ``LinearConstraint``
 
 ```
 LinearConstraint(A, kind, enforce_feasibility=False)
