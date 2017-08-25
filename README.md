@@ -66,10 +66,10 @@ result = minimize_constrained(fun, x0, grad, hess, (nonlinear, box))
 
 ## Documentation
 
-The function [``minimize_constrained``](minimize_constrained) solves nonlinear programming problems.
+The function [``minimize_constrained``](https://github.com/antonior92/ip-nonlinear-solver#minimize_constrained) solves nonlinear programming problems.
 This functions minimizes an object function subject to constraints. This
-can be specified using the classes [``NonlinearConstraint``](NonlinearConstraint),
-[``LinearConstraint``](LinearConstraint) and [``BoxConstraint``](BoxConstraint).
+can be specified using the classes [``NonlinearConstraint``](https://github.com/antonior92/ip-nonlinear-solver#NonlinearConstraint),
+[``LinearConstraint``](https://github.com/antonior92/ip-nonlinear-solver#LinearConstraint) and [``BoxConstraint``](https://github.com/antonior92/ip-nonlinear-solver#BoxConstraint).
 
 
 ### <a name="minimize_constrained"></a> ``minimize_constrained``
