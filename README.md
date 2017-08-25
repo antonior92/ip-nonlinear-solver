@@ -72,7 +72,7 @@ result = minimize_constrained(fun, x0, grad, hess, (nonlinear, box))
 ## Documentation
 
 The function [``minimize_constrained``](https://github.com/antonior92/ip-nonlinear-solver#minimize_constrained) solves nonlinear programming problems.
-This functions minimizes an object function subject to constraints. This
+This functions minimizes an object function subject to constraints. These constraints
 can be specified using the classes [``NonlinearConstraint``](https://github.com/antonior92/ip-nonlinear-solver#NonlinearConstraint),
 [``LinearConstraint``](https://github.com/antonior92/ip-nonlinear-solver#LinearConstraint) and [``BoxConstraint``](https://github.com/antonior92/ip-nonlinear-solver#BoxConstraint).
 
