@@ -22,9 +22,9 @@ git clone git@github.com:antonior92/ip-nonlinear-solver.git
 # git clone https://github.com/antonior92/ip-nonlinear-solver.git
 ```
 
-2) **Install package for development**
+2) **Install package**
 
-Install package for development with:
+Move into the downloaded directory and install package with:
 ```bash
 pip install -r requirements.txt
 python setup.py install
@@ -35,6 +35,14 @@ or, if you need root user priveleges:
 sudo pip install -r requirements.txt
 sudo python setup.py install
 ```
+
+3) **Test instalation**
+
+The instalation can be tested, by running:
+```bash
+python setup.py test
+```
+inside the downloaded directory.
 
 ## Usage Example
 Consider the following minimization problem:

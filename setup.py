@@ -6,4 +6,5 @@ setup(name='ip-nonlinear-solver',
       description='A trust-region interior-point method for general nonlinear programing problems.',
       author='Antonio H. Ribeiro, Nikolay Mayorov, Matt Haberland, Ralf Gommers',
       author_email='antonior92@gmail.com',
-      packages=['ipsolver'])
+      packages=['ipsolver'],
+      test_suite='nose.collector')
