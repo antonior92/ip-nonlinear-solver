@@ -26,12 +26,14 @@ git clone git@github.com:antonior92/ip-nonlinear-solver.git
 
 Install package for development with:
 ```bash
-python setup.py develop
+pip install -r requirements.txt
+python setup.py install
 ```
 
 or, if you need root user priveleges:
 ```bash
-sudo python setup.py develop
+sudo pip install -r requirements.txt
+sudo python setup.py install
 ```
 
 ## Usage Example
