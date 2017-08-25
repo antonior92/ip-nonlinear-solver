@@ -5,6 +5,8 @@
 A trust-region interior-point method for general nonlinear programing problems. The implemetation
 is part my GSoC project for Scipy.
 
+
+
 ## Instalation Guide
 
 1) **Download repository from github**
@@ -64,7 +66,13 @@ result = minimize_constrained(fun, x0, grad, hess, (nonlinear, box))
 
 ## Documentation
 
-### ``minimize_constrained``
+The function [``minimize_constrained``](minimize_constrained) solves nonlinear programming problems.
+This functions minimizes an object function subject to constraints. This
+can be specified using the classes [``NonlinearConstraint``](NonlinearConstraint),
+[``LinearConstraint``](LinearConstraint) and [``BoxConstraint``](BoxConstraint).
+
+
+### <a name="minimize_constrained"></a> ``minimize_constrained``
 
 ```
 minimize_constrained(fun, x0, grad, hess='2-point', constraints=(),
@@ -344,7 +352,7 @@ minimize_constrained(fun, x0, grad, hess='2-point', constraints=(),
            Optimization 8.3 (1998): 682-706.
 ```
 
-### ``NonlinearConstraint``
+### <a name="NonlinearConstraint"></a> ``NonlinearConstraint``
 
 ```
 NonlinearConstraint(fun, kind, jac, hess='2-point', enforce_feasibility=False)
@@ -414,7 +422,7 @@ NonlinearConstraint(fun, kind, jac, hess='2-point', enforce_feasibility=False)
         is False.
 ```
 
-### ``LinearConstraint``
+### <a name="LinearConstraint"></a> ``LinearConstraint``
 
 ```
 LinearConstraint(A, kind, enforce_feasibility=False)
@@ -458,7 +466,7 @@ LinearConstraint(A, kind, enforce_feasibility=False)
         is False.
 ```
 
-### ``BoxConstraint``
+### <a name="BoxConstraint"></a> ``BoxConstraint``
 
 ```
 BoxConstraint(kind, enforce_feasibility=False)
