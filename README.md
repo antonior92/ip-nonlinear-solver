@@ -62,7 +62,7 @@ x0 = np.array([0, 0])
 result = minimize_constrained(fun, x0, grad, hess, (nonlinear, box))
 ```
 
-## Short Documentation
+## Documentation
 
 ### ``minimize_constrained``
 
