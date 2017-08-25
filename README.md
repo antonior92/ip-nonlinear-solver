@@ -24,21 +24,19 @@ git clone git@github.com:antonior92/ip-nonlinear-solver.git
 
 2) **Install package**
 
-Move into the downloaded directory and install package with:
+Move into the downloaded directory and install requirements with:
 ```bash
 pip install -r requirements.txt
-python setup.py install
 ```
 
-or, if you need root user priveleges:
+In sequence, install package with:
 ```bash
-sudo pip install -r requirements.txt
-sudo python setup.py install
+python setup.py install
 ```
 
 3) **Test instalation**
 
-The instalation can be tested, by running:
+The instalation can be tested by running:
 ```bash
 python setup.py test
 ```
