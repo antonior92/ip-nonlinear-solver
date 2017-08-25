@@ -7,7 +7,7 @@ from numpy.linalg import norm
 
 from scipy.sparse.linalg import LinearOperator
 from scipy.sparse import issparse, csc_matrix, csr_matrix, coo_matrix, find
-from ._group_columns import group_dense, group_sparse
+from scipy.optimize._group_columns import group_dense, group_sparse
 
 EPS = np.finfo(np.float64).eps
 
