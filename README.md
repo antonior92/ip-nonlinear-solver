@@ -6,7 +6,7 @@ A trust-region interior-point method for general nonlinear programing problems. 
 is part my GSoC project for Scipy. A series of blog post describe different aspects of the algorithm
 and its use  ([link](https://antonior92.github.io/tags/#gsoc-2017)).
 
-The implementation can be found on the separate repository and is being
+The implementation is being
 integrated to SciPy through the pull request:
 
 [https://github.com/scipy/scipy/pull/7729](https://github.com/scipy/scipy/pull/7729)
