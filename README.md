@@ -38,7 +38,7 @@ subject to: 1/(x + 1) - y >= 1/4;
 
 The code for solving this problem is presented bellow:
 
-``` Python
+```Python
 # Example
 from __future__ import division, print_function, absolute_import
 import numpy as np
@@ -66,7 +66,7 @@ result = minimize_constrained(fun, x0, grad, hess, (nonlinear, box))
 
 ### ``minimize_constrained``
 
-```Python
+```
 minimize_constrained(fun, x0, grad, hess='2-point', constraints=(),
                      method=None, xtol=1e-8, gtol=1e-8, sparse_jacobian=None,
                      options={}, callback=None, max_iter=1000, verbose=0)
@@ -346,7 +346,7 @@ minimize_constrained(fun, x0, grad, hess='2-point', constraints=(),
 
 ### ``NonlinearConstraint``
 
-```Python
+```
 NonlinearConstraint(fun, kind, jac, hess='2-point', enforce_feasibility=False)
 
    Nonlinear constraint
@@ -416,7 +416,7 @@ NonlinearConstraint(fun, kind, jac, hess='2-point', enforce_feasibility=False)
 
 ### ``LinearConstraint``
 
-```Python
+```
 LinearConstraint(A, kind, enforce_feasibility=False)
 
     Linear constraint.
@@ -460,7 +460,7 @@ LinearConstraint(A, kind, enforce_feasibility=False)
 
 ### ``BoxConstraint``
 
-```Python
+```
 BoxConstraint(kind, enforce_feasibility=False)
 
     Box constraint.
