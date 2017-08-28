@@ -74,15 +74,18 @@ box = BoxConstraint(("greater",))
 # Define initial point
 x0 = np.array([0, 0])
 # Apply solver
-result = minimize_constrained(fun, x0, grad, hess, (nonlinear, box))
+result = minimize_constrained(fun, x0, grad, hess, (nonlinear, box))print
+
+# Print result
+print(result.x)
 ```
 
 ## Documentation
 
 The function [``minimize_constrained``](https://github.com/antonior92/ip-nonlinear-solver#minimize_constrained) solves nonlinear programming problems.
 This functions minimizes an object function subject to constraints. These constraints
-can be specified using the classes [``NonlinearConstraint``](https://github.com/antonior92/ip-nonlinear-solver#NonlinearConstraint),
-[``LinearConstraint``](https://github.com/antonior92/ip-nonlinear-solver#LinearConstraint) and [``BoxConstraint``](https://github.com/antonior92/ip-nonlinear-solver#BoxConstraint).
+can be specified using the classes [``NonlinearConstraint``](https://github.com/antonior92/ip-nonlinear-solver#nonlinearconstraint),
+[``LinearConstraint``](https://github.com/antonior92/ip-nonlinear-solver#linearconstraint) and [``BoxConstraint``](https://github.com/antonior92/ip-nonlinear-solver#BoxConstraint).
 
 
 ### ``minimize_constrained``
