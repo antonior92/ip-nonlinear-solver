@@ -74,7 +74,7 @@ box = BoxConstraint(("greater",))
 # Define initial point
 x0 = np.array([0, 0])
 # Apply solver
-result = minimize_constrained(fun, x0, grad, hess, (nonlinear, box))print
+result = minimize_constrained(fun, x0, grad, hess, (nonlinear, box))
 
 # Print result
 print(result.x)
