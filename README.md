@@ -496,19 +496,19 @@ BoxConstraint(kind, enforce_feasibility=False)
         parameter are:
 
             - ('interval', lb, ub) for a constraint of the type:
-                lb <= A x <= ub
+                lb <= x <= ub
             - ('greater', lb) for a constraint of the type:
-                A x >= lb
+                x >= lb
             - ('less', ub) for a constraint of the type:
-                A x <= ub
+                x <= ub
             - ('equals', c) for a constraint of the type:
-                A x == c
+                x == c
             - ('greater',) for a constraint of the type:
-                A x >= 0
+                x >= 0
             - ('less',) for a constraint of the type:
-                A x <= 0
+                x <= 0
             - ('equals',) for a constraint of the type:
-                A x == 0
+                x == 0
 
         where ``lb``,  ``ub`` and ``c`` are (m,) ndarrays or
         scalar values. In the latter case, the same value
